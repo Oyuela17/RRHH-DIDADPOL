@@ -1,0 +1,81 @@
+/* Contenedor general */
+.modulo-wrapper {
+    margin: 0 30px;
+    width: calc(100% - 60px);
+    box-sizing: border-box;
+}
+
+/* Título alineado a la izquierda */
+.titulo-modulo {
+    font-size: 28px;
+    font-weight: 700;
+    color: #003366;
+    margin-bottom: 20px;
+    text-align: left;
+    position: relative;
+}
+
+.titulo-modulo::after {
+    content: "";
+    display: block;
+    width: 60px;
+    height: 4px;
+    background-color: #f9b233;
+    margin-top: 6px;
+    border-radius: 4px;
+}
+
+/* Contenedor moderno de la tabla */
+.modulo-container {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.08);
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+/* Tabla moderna y adaptable */
+.modulo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    table-layout: fixed;
+}
+
+/* Encabezado */
+.modulo-table th {
+    background-color: #003366;
+    color: white;
+    font-weight: bold;
+    padding: 14px 12px;
+    text-align: center;
+    border-bottom: 2px solid #ccc;
+}
+
+/* Celdas */
+.modulo-table td {
+    padding: 14px 12px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    background-color: #fefefe;
+    word-break: break-word;
+}
+
+/* Fila alterna */
+.modulo-table tr:nth-child(even) td {
+    background-color: #f5f9ff;
+}
+
+/* Hover efecto */
+.modulo-table tr:hover td {
+    background-color: #e0efff;
+    transition: 0.3s;
+}
+
+/* Evitar scroll lateral */
+.main-content {
+    width: 100%;
+    overflow-x: hidden;
+}

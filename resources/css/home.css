@@ -1,0 +1,109 @@
+/* Contenedor de scroll horizontal */
+.home-wrapper .metrics-scroll-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 24px;
+
+  /* scroll solo en X, visible en Y para que no recorte la animación */
+  overflow-x: auto;
+  overflow-y: visible;
+
+  /* espacio para que al subir 8–10px no se corte */
+  padding: 16px 8px 28px;
+
+  /* márgenes para respirar en los lados */
+  margin: 80px -8px 0;
+  padding-left: 8px;
+
+  /* ayuda a que no salte el layout cuando aparece la barra */
+  scrollbar-gutter: stable both-edges;
+}
+
+/* Cada tarjeta como ítem individual */
+.home-wrapper .metrics-item {
+  flex: 0 0 auto;
+  min-width: 340px;
+  max-width: 380px;
+
+  /* crea un contexto para el z-index del hover */
+  position: relative;
+  /* un poco de espacio vertical por si acaso */
+  padding: 4px 0;
+}
+
+/* Tarjeta */
+.home-wrapper .metrics-card {
+  width: 100%;
+  border-radius: 20px;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  color: #fff;
+
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
+  transition: transform .25s ease, box-shadow .25s ease;
+  will-change: transform;
+  position: relative; /* necesario para que el z-index surta efecto */
+  z-index: 0;
+}
+
+/* Hover */
+.home-wrapper .metrics-card:hover {
+  transform: translateY(-8px) scale(1.01);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+  z-index: 3; /* por encima de las vecinas */
+}
+
+/* Ícono */
+.home-wrapper .metrics-icon {
+  font-size: 32px;
+  color: #fff;
+  background-color: rgba(0,0,0,0.2);
+  padding: 18px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 64px;
+  margin-right: 20px;
+}
+
+/* Texto de la tarjeta */
+.home-wrapper .metrics-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.home-wrapper .metrics-value {
+  font-size: 32px;
+  font-weight: bold;
+  margin: 4px 0 0;
+}
+
+.home-wrapper .metrics-subtext {
+  font-size: 14px;
+  opacity: 0.8;
+  margin-top: 6px;
+}
+
+/* Colores personalizados */
+.bg-purple { background: linear-gradient(to right, #6a11cb, #2575fc); }
+.bg-orange { background: linear-gradient(to right, #f7971e, #ffd200); }
+.bg-teal   { background: linear-gradient(to right, #11998e, #38ef7d); }
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap');
+
+.bienvenida-titulo {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 800;       
+  color: #1e2a38;        
+}
+
+.bienvenida-titulo span {
+  color: #2575fc;         
+}

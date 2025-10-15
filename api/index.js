@@ -1,4 +1,6 @@
 require('dotenv').config();
+const nodemailer = require('nodemailer');
+
 
 const express = require('express');
 const cors = require('cors');
@@ -7,17 +9,77 @@ const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const { Pool } = require('pg');
-const bcrypt = require('bcrypt');
-const crypto = require('crypto');
-const { v4: uuidv4 } = require('uuid');
-const nodemailer = require('nodemailer');
 const archiver = require('archiver');
 const dayjs = require('dayjs');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// =========================
+// PostgreSQL: Pool (Render listo)
+// - Soporta DATABASE_URL o variables por separado
+// - En producción fuerza SSL para Render
+// =========================
+const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+
+const pool =
+  process.env.DATABASE_URL
+    ? new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: isProd ? { rejectUnauthorized: false } : false,
+      })
+    : new Pool({
+        host: process.env.DB_HOST || 'localhost',
+        port: Number(process.env.DB_PORT) || 5432,
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || '',
+        database: process.env.DB_NAME || 'RRHH-DIDADPOL',
+        ssl: isProd ? { rejectUnauthorized: false } : false,
+      });
+
+// =========================
+// Health & raíz
+// =========================
+app.get('/', (_req, res) => res.send('RRHH-DIDADPOL API running'));
+app.get('/health', (_req, res) => res.json({ ok: true, at: new Date().toISOString() }));
+
+// =========================
+// Auth simple para backups
+// Encabezado: X-Admin-Token
+// =========================
+function backupsAuth(req, res, next) {
+  const token = req.header('X-Admin-Token');
+  if (!token || token !== (process.env.ADMIN_TOKEN || '')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+// =========================
+// GET: Mostrar registros de bitácora (versión minimalista)
+// =========================
+app.get('/api/bitacora', async (_req, res) => {
+  try {
+    const query = `
+      SELECT 
+        fecha, 
+        usuario_nombre, 
+        accion, 
+        tabla, 
+        descripcion, 
+        ip_origen
+      FROM public.bitacora
+      ORDER BY fecha DESC;
+    `;
+    const { rows } = await pool.query(query);
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener la bitácora:', error);
+    res.status(500).json({ error: 'Error al obtener los registros de la bitácora' });
+  }
+});
 
 // =========================
 // Subidas (multer)
@@ -28,29 +90,7 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
   filename: (_req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
-const upload = multer({ storage });
-
-// =========================
-// PostgreSQL
-// =========================
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 5432,
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'RRHH-DIDADPOL',
-});
-
-// =========================
-// Auth simple para backups
-// =========================
-function backupsAuth(req, res, next) {
-  const token = req.header('X-Admin-Token');
-  if (!token || token !== (process.env.ADMIN_TOKEN || '')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-}
+const upload = multer({ storage }); // (por si lo ocupas en otros endpoints)
 
 // =========================
 // RESTORE (usar archivo existente)
@@ -100,12 +140,13 @@ async function restoreFromFile(inputPath, originalName) {
     : 'psql';
   const pgRestoreBin = process.env.PG_RESTORE_PATH || 'pg_restore';
 
-  const execCmd = (cmd) => new Promise((ok, bad) => {
-    exec(cmd, { env: { ...process.env, PGPASSWORD: dbPass } }, (err, stdout, stderr) => {
-      if (err) return bad({ err, stdout, stderr });
-      ok({ stdout, stderr });
+  const execCmd = (cmd) =>
+    new Promise((ok, bad) => {
+      exec(cmd, { env: { ...process.env, PGPASSWORD: dbPass } }, (err, stdout, stderr) => {
+        if (err) return bad({ err, stdout, stderr });
+        ok({ stdout, stderr });
+      });
     });
-  });
 
   async function runSqlFile(filePath) {
     const cmd = `${psqlBin} -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -v ON_ERROR_STOP=1 -f "${filePath}"`;
@@ -113,8 +154,9 @@ async function restoreFromFile(inputPath, originalName) {
   }
 
   async function runDumpFile(filePath) {
-    const cmd = `${pgRestoreBin} -h ${dbHost} -p ${dbPort} -U ${dbUser} ` +
-                `--clean --if-exists --no-owner --no-privileges -d ${dbName} "${filePath}"`;
+    const cmd =
+      `${pgRestoreBin} -h ${dbHost} -p ${dbPort} -U ${dbUser} ` +
+      `--clean --if-exists --no-owner --no-privileges -d ${dbName} "${filePath}"`;
     return execCmd(cmd);
   }
 
@@ -176,11 +218,12 @@ END $$;`;
     fs.createReadStream(inputPath).pipe(unzip).on('close', ok).on('error', bad);
   });
 
-  const walk = (d) => fs.readdirSync(d, { withFileTypes: true })
-    .flatMap(de => de.isDirectory() ? walk(path.join(d, de.name)) : [path.join(d, de.name)]);
+  const walk = (d) =>
+    fs.readdirSync(d, { withFileTypes: true })
+      .flatMap(de => de.isDirectory() ? walk(path.join(d, de.name)) : [path.join(d, de.name)]);
   const all = walk(unzipDir);
 
-  const sqlFiles  = all.filter(p => p.toLowerCase().endsWith('.sql'));
+  const sqlFiles = all.filter(p => p.toLowerCase().endsWith('.sql'));
   const dumpFiles = all.filter(p => {
     const l = p.toLowerCase();
     return l.endsWith('.dump') || l.endsWith('.backup');
@@ -237,17 +280,28 @@ END $$;`;
 }
 
 // =========================
-// LISTAR Backups
+// LISTAR Backups (con nombre de usuario)
 // =========================
 app.get('/api/backups', backupsAuth, async (_req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT id, nombre_archivo, ruta_archivo, fecha, usuario_id, tipo_backup, tamano, estado
-      FROM public.backup
-      ORDER BY fecha DESC
+      SELECT
+        b.id,
+        b.nombre_archivo,
+        b.ruta_archivo,
+        b.fecha,
+        b.usuario_id,
+        COALESCE(u.name::text, CONCAT('#', b.usuario_id::text)) AS usuario_nombre,
+        b.tipo_backup,
+        b.tamano,
+        b.estado
+      FROM public.backup b
+      LEFT JOIN public.users u ON u.id = b.usuario_id
+      ORDER BY b.fecha DESC
     `);
     res.json(rows);
   } catch (e) {
+    console.error('Error al listar backups:', e);
     res.status(500).json({ error: 'No se pudo listar', detail: String(e) });
   }
 });
@@ -257,11 +311,16 @@ app.get('/api/backups', backupsAuth, async (_req, res) => {
 // =========================
 app.get('/api/backups/:id/download', backupsAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query(`SELECT * FROM public.backup WHERE id = $1`, [req.params.id]);
+    const { rows } = await pool.query(
+      `SELECT * FROM public.backup WHERE id = $1`,
+      [req.params.id]
+    );
     if (!rows.length) return res.status(404).json({ error: 'No existe' });
 
     const f = rows[0];
-    if (!fs.existsSync(f.ruta_archivo)) return res.status(404).json({ error: 'Archivo no encontrado en disco' });
+    if (!fs.existsSync(f.ruta_archivo)) {
+      return res.status(404).json({ error: 'Archivo no encontrado en disco' });
+    }
 
     return res.download(f.ruta_archivo, f.nombre_archivo);
   } catch (e) {
@@ -274,7 +333,10 @@ app.get('/api/backups/:id/download', backupsAuth, async (req, res) => {
 // =========================
 app.delete('/api/backups/:id', backupsAuth, async (req, res) => {
   try {
-    const { rows } = await pool.query(`SELECT * FROM public.backup WHERE id = $1`, [req.params.id]);
+    const { rows } = await pool.query(
+      `SELECT * FROM public.backup WHERE id = $1`,
+      [req.params.id]
+    );
     if (!rows.length) return res.status(404).json({ error: 'No existe' });
 
     const f = rows[0];
@@ -297,8 +359,9 @@ app.post('/api/backups', backupsAuth, async (req, res) => {
   const tipo = (req.body && req.body.tipo) ? String(req.body.tipo) : 'solo_bd';
   const usuario_id = (req.body && req.body.usuario_id) ? Number(req.body.usuario_id) : null;
 
-  const BACKUP_DIR = process.env.BACKUP_DIR ||
-    (process.platform === 'win32' ? 'C:/backups/miapp' : path.join(__dirname, 'backups'));
+  const BACKUP_DIR =
+    process.env.BACKUP_DIR ||
+    (process.platform === 'win32' ? 'C:/backups/miapp' : '/tmp/backups');
 
   try { fs.mkdirSync(BACKUP_DIR, { recursive: true }); }
   catch (e) { return res.status(500).json({ error: 'No se pudo crear BACKUP_DIR', detail: String(e) }); }
@@ -399,18 +462,10 @@ app.post('/api/backups', backupsAuth, async (req, res) => {
     archive.pipe(output);
     // Agrega el dump en formato custom
     archive.file(tmpDump, { name: `db_${ts}.dump` });
-
-    // Si más adelante agregas un PDF/HTML "como la vista", lo añades aquí:
-    // archive.file(rutaPdf, { name: `reporte_${ts}.pdf` });
-
     archive.finalize();
   });
 });
 
-// =========================
-// Health
-// =========================
-app.get('/health', (_req, res) => res.json({ ok: true, at: new Date().toISOString() }));
 
 
 // 🔧 Quitar acentos
@@ -2169,101 +2224,6 @@ app.delete('/api/tipos-empleados/:id', async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar tipo de empleado:', error);
     res.status(500).json({ error: 'Error al eliminar tipo de empleado' });
-  }
-});
-
-//TITULOS
-app.get('/api/titulos', async (req, res) => {
-  const detalles = req.query.detalles === 'true';
-
-  try {
-    const consultaSQL = detalles
-      ? `
-        SELECT cod_titulo, titulo, abreviatura, descripcion
-        FROM public.titulos_empleados
-        ORDER BY titulo ASC
-      `
-      : `
-        SELECT cod_titulo, titulo
-        FROM public.titulos_empleados
-        ORDER BY titulo ASC
-      `;
-
-    const result = await pool.query(consultaSQL);
-
-    if (detalles) {
-      // 🟢 Versión detallada
-      res.status(200).json(result.rows);
-    } else {
-      // 🟡 Versión resumida para selects
-      const titulos = result.rows.map(t => ({
-        cod_titulo: t.cod_titulo,
-        nombre: t.titulo
-      }));
-      res.status(200).json(titulos);
-    }
-
-  } catch (error) {
-    console.error('❌ Error al obtener títulos:', error);
-    res.status(500).json({ error: 'Error al obtener los títulos' });
-  }
-});
-
-//post
-app.post('/api/titulos', async (req, res) => {
-  const { titulo, abreviatura, descripcion } = req.body;
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO public.titulos_empleados (titulo, abreviatura, descripcion)
-       VALUES ($1, $2, $3) RETURNING cod_titulo`,
-      [titulo, abreviatura, descripcion]
-    );
-
-    res.status(201).json({
-      mensaje: 'Título registrado correctamente',
-      cod_titulo: result.rows[0].cod_titulo
-    });
-  } catch (error) {
-    console.error('❌ Error al registrar título:', error);
-    res.status(500).json({ error: 'Error al registrar título' });
-  }
-});
-
-//PUT
-app.put('/api/titulos/:id', async (req, res) => {
-  const { id } = req.params;
-  const { titulo, abreviatura, descripcion } = req.body;
-
-  try {
-    await pool.query(
-      `UPDATE public.titulos_empleados
-       SET titulo = $1, abreviatura = $2, descripcion = $3
-       WHERE cod_titulo = $4`,
-      [titulo, abreviatura, descripcion, id]
-    );
-
-    res.status(200).json({ mensaje: 'Título actualizado correctamente' });
-  } catch (error) {
-    console.error('❌ Error al actualizar título:', error);
-    res.status(500).json({ error: 'Error al actualizar título' });
-  }
-});
-
-//DELETE
-app.delete('/api/titulos/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await pool.query(
-      `DELETE FROM public.titulos_empleados WHERE cod_titulo = $1`,
-      [id]
-    );
-
-    res.status(200).json({ mensaje: 'Título eliminado correctamente' });
-  } catch (error) {
-    console.error('❌ Error al eliminar título:', error);
-    res.status(500).json({ error: 'Error al eliminar título' });
   }
 });
 

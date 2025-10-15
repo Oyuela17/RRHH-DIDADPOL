@@ -1,312 +1,406 @@
-@extends('layouts.auth')
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Definir Nueva Contraseña</title>
+  @vite(['resources/css/login.css', 'resources/js/app.js'])
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
 
-@section('title', 'Definir Contraseña')
+<div class="login-wrapper">
+  <div class="card-login" id="cardLogin">
+    <!-- IZQUIERDA -->
+    <div class="card-left">
+      <form id="formDefinir" onsubmit="definirContrasena(event)">
+        <h2>Definir Nueva Contraseña</h2>
+        <p class="subtitle">Crea una contraseña segura para tu cuenta</p>
 
-@section('content')
-<!-- SweetAlert2 -->
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-<div class="form-box">
-    <h2 class="titulo">Definir Nueva Contraseña</h2>
-    <div class="linea"></div>
-
-    <form id="formDefinir" class="formulario" onsubmit="definirContrasena(event)">
         <input type="hidden" id="token" value="{{ request()->get('token') }}">
+        <input type="hidden" id="email" value="{{ request()->get('email') }}">
 
-        <div class="form-group">
-            <label for="password">Nueva contraseña:</label>
-            <div class="password-wrapper">
-                <input type="password" id="password" required>
-                <span toggle="#password" class="toggle-password">
-                    <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                </span>
-            </div>
-            <ul class="requisitos">
-                <li id="req-length">✔ Mínimo 8 caracteres</li>
-                <li id="req-uppercase">✔ Una letra mayúscula</li>
-                <li id="req-lowercase">✔ Una letra minúscula</li>
-                <li id="req-number">✔ Un número</li>
-                <li id="req-symbol">✔ Un símbolo especial</li>
-            </ul>
-            <div id="barra-seguridad" class="barra-seguridad">
-                <div id="nivel-seguridad" class="nivel-seguridad"></div>
-            </div>
-            <div id="texto-seguridad" class="texto-seguridad"></div>
-            <div id="mensajeSeguridad" class="mensaje error"></div>
+        <!-- Campo contraseña -->
+        <div class="form-group password-wrapper">
+          <input type="password" id="password" placeholder="Nueva contraseña" required autocomplete="new-password">
+          <span toggle="#password" class="toggle-password" onclick="togglePassword(this)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </span>
+
+          <!-- Tooltip arriba -->
+          <ul class="requisitos-tooltip top" id="requisitos">
+            <li id="req-length">✔ Mínimo 8 caracteres</li>
+            <li id="req-uppercase">✔ Una letra mayúscula</li>
+            <li id="req-lowercase">✔ Una letra minúscula</li>
+            <li id="req-number">✔ Un número</li>
+            <li id="req-symbol">✔ Un símbolo especial</li>
+          </ul>
+
+          <!-- Mensaje interno -->
+          <span id="mensajeInline" class="mensaje-inline">Debe cumplir todos los requisitos de seguridad</span>
         </div>
 
-        <div class="form-group">
-            <label for="confirmar">Confirmar contraseña:</label>
-            <div class="password-wrapper">
-                <input type="password" id="confirmar" required>
-                <span toggle="#confirmar" class="toggle-password">
-                    <svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                </span>
-            </div>
-            <div id="coincidencia" class="mensaje"></div>
+        <!-- Barra moderna -->
+        <div class="barra-seguridad">
+          <div id="nivel-seguridad" class="nivel-seguridad"></div>
+          <div class="glow"></div>
+        </div>
+        <div id="texto-seguridad" class="texto-seguridad"></div>
+
+        <!-- Confirmar contraseña -->
+        <div class="form-group password-wrapper">
+          <input type="password" id="confirmar" placeholder="Confirmar contraseña" required autocomplete="new-password">
+          <span toggle="#confirmar" class="toggle-password" onclick="togglePassword(this)">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </span>
+
+          <!-- Mensaje interno de coincidencia -->
+          <span id="mensajeCoincidencia" class="mensaje-inline">Las contraseñas no coinciden</span>
         </div>
 
-        <button type="submit" id="btnGuardar" disabled>GUARDAR CONTRASEÑA</button>
-        <div id="mensaje" class="mensaje"></div>
-    </form>
+        <button type="submit" id="btnGuardar" class="btn-login" disabled>Guardar Contraseña</button>
+      </form>
+    </div>
+
+    <!-- DERECHA -->
+    <div class="card-right">
+      <img src="{{ asset('imagen/LOGO_OFICIAL.png') }}" alt="Logo DIDADPOL" class="logo-panel">
+    </div>
+  </div>
 </div>
 
-<style>
-body {
-    background: linear-gradient(to bottom, #043668, #0a5fa3);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-}
-.form-box {
-    background: white;
-    padding: 30px;
-    border-radius: 12px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.08);
-    width: 100%;
-    max-width: 420px;
-}
-.titulo {
-    font-size: 24px;
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 10px;
-    color: #222;
-}
-.linea {
-    width: 60px;
-    height: 4px;
-    background-color: #f9b233;
-    margin: 0 0 20px 0;
-    border-radius: 2px;
-}
-.formulario {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-.form-group {
-    width: 100%;
-    margin-bottom: 18px;
-}
-label {
-    font-weight: 600;
-    color: #444;
-    margin-bottom: 6px;
-    display: block;
-}
-.password-wrapper {
-    position: relative;
-}
-.toggle-password {
-    position: absolute;
-    top: 50%;
-    right: 12px;
-    transform: translateY(-50%);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.icon-eye {
-    width: 20px;
-    height: 20px;
-    pointer-events: none;
-}
-input[type="password"], input[type="text"] {
-    width: 100%;
-    padding: 12px 14px;
-    font-size: 15px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    box-sizing: border-box;
-}
-input[type="password"]:focus, input[type="text"]:focus {
-    outline: none;
-    border-color: #f9b233;
-    box-shadow: 0 0 0 2px rgba(249, 178, 51, 0.2);
-}
-.requisitos {
-    list-style: none;
-    padding: 0;
-    margin: 10px 0;
-    font-size: 13px;
-    color: #444;
-}
-.requisitos li {
-    margin-bottom: 4px;
-}
-#btnGuardar {
-    width: 100%;
-    background-color: #f9b233;
-    color: white;
-    font-weight: bold;
-    font-size: 15px;
-    border: none;
-    padding: 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-}
-#btnGuardar:hover {
-    background-color: #e3a926;
-}
-.mensaje {
-    margin-top: 6px;
-    text-align: center;
-    font-weight: 600;
-    font-size: 13px;
-}
-.mensaje.success {
-    color: green;
-}
-.mensaje.error {
-    color: red;
-}
-.barra-seguridad {
-    height: 10px;
-    background-color: #e0e0e0;
-    border-radius: 6px;
-    overflow: hidden;
-    margin-top: 8px;
-}
-.nivel-seguridad {
-    height: 100%;
-    width: 0%;
-    background-color: red;
-    transition: width 0.4s ease;
-}
-.texto-seguridad {
-    margin-top: 6px;
-    font-size: 13px;
-    font-weight: bold;
-    color: #555;
-}
-</style>
-
 <script>
-document.querySelectorAll('.toggle-password').forEach(toggle => {
-    toggle.addEventListener('click', function () {
-        const input = document.querySelector(this.getAttribute('toggle'));
-        const isVisible = input.type === 'text';
-        input.type = isVisible ? 'password' : 'text';
-        this.innerHTML = isVisible
-            ? `<svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`
-            : `<svg class="icon-eye" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.4 21.4 0 0 1 5.29-6.71"/><path d="M1 1l22 22"/></svg>`;
-    });
-});
+function togglePassword(element) {
+  const input = document.querySelector(element.getAttribute('toggle'));
+  input.type = input.type === 'text' ? 'password' : 'text';
+}
 
 const passwordInput = document.getElementById('password');
 const confirmarInput = document.getElementById('confirmar');
 const nivelSeguridad = document.getElementById('nivel-seguridad');
 const textoSeguridad = document.getElementById('texto-seguridad');
 const btnGuardar = document.getElementById('btnGuardar');
-const coincidencia = document.getElementById('coincidencia');
-const mensajeSeguridad = document.getElementById('mensajeSeguridad');
+const requisitos = document.getElementById('requisitos');
+const mensajeInline = document.getElementById('mensajeInline');
+const mensajeCoincidencia = document.getElementById('mensajeCoincidencia');
+const cardLogin = document.getElementById('cardLogin');
+
+let hideTimeout;
 
 function validarPassword() {
-    const val = passwordInput.value;
-    const confirmVal = confirmarInput.value;
-    let strength = 0;
+  const val = passwordInput.value;
+  const confirmVal = confirmarInput.value;
 
-    const reqs = [
-        [val.length >= 8, 'req-length'],
-        [/[A-Z]/.test(val), 'req-uppercase'],
-        [/[a-z]/.test(val), 'req-lowercase'],
-        [/\d/.test(val), 'req-number'],
-        [/[^A-Za-z0-9]/.test(val), 'req-symbol']
-    ];
+  clearTimeout(hideTimeout);
 
-    strength = reqs.reduce((acc, [passed]) => passed ? acc + 1 : acc, 0);
-    reqs.forEach(([passed, id]) => {
-        const li = document.getElementById(id);
-        if (li) li.style.color = passed ? 'green' : 'gray';
-    });
+  // Mostrar tooltip solo mientras escribes en "password"
+  if (document.activeElement === passwordInput && val.length > 0) {
+    requisitos.classList.add('visible');
+  } else {
+    requisitos.classList.remove('visible');
+  }
 
-    let width = '0%';
-    let color = 'red';
-    let label = 'Seguridad: Débil';
-    if (strength <= 2) {
-        width = '33%'; color = '#e74c3c'; label = 'Seguridad: Débil';
-    } else if (strength === 3 || strength === 4) {
-        width = '66%'; color = '#f39c12'; label = 'Seguridad: Media';
-    } else if (strength === 5) {
-        width = '100%'; color = '#27ae60'; label = 'Seguridad: Fuerte';
-    }
-    nivelSeguridad.style.width = width;
-    nivelSeguridad.style.backgroundColor = color;
-    textoSeguridad.textContent = label;
-    textoSeguridad.style.color = color;
+  const reqs = [
+    [val.length >= 8, 'req-length'],
+    [/[A-Z]/.test(val), 'req-uppercase'],
+    [/[a-z]/.test(val), 'req-lowercase'],
+    [/\d/.test(val), 'req-number'],
+    [/[^A-Za-z0-9]/.test(val), 'req-symbol']
+  ];
 
-    if (val && confirmVal && val !== confirmVal) {
-        coincidencia.textContent = '❌ Las contraseñas no coinciden';
-        coincidencia.className = 'mensaje error';
-    } else {
-        coincidencia.textContent = '';
-    }
+  let strength = reqs.reduce((acc, [ok]) => ok ? acc + 1 : acc, 0);
+  reqs.forEach(([ok, id]) => {
+    const li = document.getElementById(id);
+    if (li) li.style.color = ok ? '#22c55e' : '#9ca3af';
+  });
 
-    if (val && strength < 5) {
-        mensajeSeguridad.textContent = '❌ Debe cumplir todos los requisitos de seguridad';
-    } else {
-        mensajeSeguridad.textContent = '';
-    }
+  let color, label, width;
+  if (strength <= 2) { color='#ff4d4d'; label='Débil'; width='25%'; }
+  else if (strength <= 4) { color='#ffb700'; label='Media'; width='70%'; }
+  else { color='#22c55e'; label='Fuerte'; width='100%'; }
 
-    btnGuardar.disabled = !(strength === 5 && val === confirmVal);
+  nivelSeguridad.style.background = `linear-gradient(90deg, ${color}, #ffffff22)`;
+  nivelSeguridad.style.width = width;
+  textoSeguridad.textContent = `Seguridad: ${label}`;
+  textoSeguridad.style.color = color;
+
+  // Mensaje inline de requisitos
+  mensajeInline.style.opacity = (val && strength < 5) ? 1 : 0;
+
+  // Ocultar requisitos si completa o cambia de input
+  hideTimeout = setTimeout(() => {
+    if (strength === 5 || val.length === 0) requisitos.classList.remove('visible');
+  }, 1000);
+
+  // Mensaje inline de coincidencia (en confirmar)
+  mensajeCoincidencia.style.opacity = (confirmVal && val !== confirmVal) ? 1 : 0;
+
+  btnGuardar.disabled = !(strength === 5 && val === confirmVal);
 }
 
 passwordInput.addEventListener('input', validarPassword);
 confirmarInput.addEventListener('input', validarPassword);
+confirmarInput.addEventListener('focus', () => requisitos.classList.remove('visible'));
+passwordInput.addEventListener('blur', () => requisitos.classList.remove('visible'));
 
-async function definirContrasena(e) {
-    e.preventDefault();
-    const password = passwordInput.value;
-    const confirmar = confirmarInput.value;
-    const token = document.getElementById('token').value;
-    const urlParams = new URLSearchParams(window.location.search);
-    const email = urlParams.get('email');
+/* 🔔 salida suave: anima y luego cierra/redirige */
+function smoothExit() {
+  // añade clase de cierre
+  cardLogin.classList.add('closing');
+  // tras la animación, intenta cerrar y si no, redirige
+  setTimeout(() => {
+    window.close();                 // si fue ventana abierta por script, esto la cierra
+    window.location.replace('/login'); // fallback
+  }, 420); // debe coincidir con la duración del @keyframes cardOut
+}
 
-    if (!token || !email) {
-        Swal.fire({ icon: 'error', title: 'Faltan datos', text: 'Token o correo faltante.' });
-        return;
+// ✅ Envío del formulario (con cierre suave o redirect)
+async function definirContrasena(event) {
+  event.preventDefault();
+
+  const tokenEl = document.getElementById('token');
+  const emailEl = document.getElementById('email');
+
+  // Tomar primero los hidden; si vienen vacíos, leer de la URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = (tokenEl && tokenEl.value) || urlParams.get('token');
+  const email = (emailEl && emailEl.value) || urlParams.get('email');
+
+  const password = passwordInput.value;
+
+  if (!token || !email) {
+    return Swal.fire({
+      icon: 'error',
+      title: 'Enlace inválido',
+      text: 'Faltan datos en el enlace (token o correo).'
+    });
+  }
+
+  btnGuardar.disabled = true;
+
+  try {
+    const res = await fetch('http://localhost:3000/api/definir-contrasena', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, email, password })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = data?.error || data?.message || 'No se pudo guardar la contraseña.';
+      let titulo = 'Error';
+      if (/token/i.test(msg)) titulo = 'Token inválido o expirado';
+      if (/correo|email/i.test(msg)) titulo = 'Correo no registrado';
+
+      await Swal.fire({ icon: 'error', title: titulo, text: msg });
+      btnGuardar.disabled = false;
+      return;
     }
 
-    if (password !== confirmar) {
-        Swal.fire({ icon: 'error', title: 'Error', text: 'Las contraseñas no coinciden.' });
-        return;
-    }
+    // Éxito: mostramos snackbar/alerta y luego salida suave
+    await Swal.fire({
+      icon: 'success',
+      title: '¡Contraseña actualizada!',
+      text: 'Tu contraseña ha sido guardada correctamente.',
+      timer: 1400,
+      showConfirmButton: false
+    });
 
-    try {
-        const response = await fetch("http://localhost:3000/api/definir-contrasena", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, token, password })
-        });
+    // animación + cierre/redirect
+    smoothExit();
 
-        const data = await response.json();
-        if (response.ok) {
-            Swal.fire({
-                icon: 'success',
-                title: 'Contraseña actualizada',
-                text: 'Redirigiendo al login...',
-                timer: 2000,
-                showConfirmButton: false
-            });
-            setTimeout(() => { window.location.href = "/login"; }, 2000);
-        } else {
-            Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'No se pudo actualizar.' });
-        }
-    } catch (error) {
-        console.error(error);
-        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo conectar con el servidor.' });
-    }
+  } catch (err) {
+    console.error(err);
+    await Swal.fire({
+      icon: 'error',
+      title: 'Error de conexión',
+      text: 'No se pudo conectar con el servidor.'
+    });
+    btnGuardar.disabled = false;
+  }
 }
 </script>
-@endsection
+
+<style>
+/* Fondo general */
+body, html {
+  height: 100%;
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #005796, #8d99ae);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Contenedor */
+.card-login {
+  display: flex;
+  width: 800px;
+  height: 520px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  box-shadow: 0 15px 30px rgba(0,0,0,0.25);
+  overflow: hidden;
+  transform-origin: center;
+  animation: cardEntrance 0.8s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes cardEntrance {
+  from { transform: translateY(10px) scale(.98); opacity: 0; filter: blur(2px); }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; filter: blur(0);  }
+}
+
+/* 👋 CIERRE SUAVE */
+.card-login.closing {
+  animation: cardOut 0.42s cubic-bezier(.2,.8,.2,1) forwards;
+}
+@keyframes cardOut {
+  to { transform: translateY(10px) scale(.98); opacity: 0; filter: blur(3px); }
+}
+
+.card-left {
+  flex: 1;
+  background: linear-gradient(135deg, #004b84, #006ab3);
+  color: #fff;
+  padding: 40px 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.password-wrapper { position: relative; }
+
+/* Inputs */
+.password-wrapper input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  border: none;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #333;
+  transition: all 0.3s;
+}
+.password-wrapper input:focus {
+  outline: none;
+  box-shadow: 0 0 10px rgba(244, 163, 0, 0.5);
+}
+
+/* Icono ojo */
+.toggle-password {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+/* Tooltip (arriba del campo contraseña) */
+.requisitos-tooltip {
+  position: absolute;
+  bottom: 110%;
+  left: 0;
+  background: rgba(255,255,255,0.97);
+  color: #333;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.25);
+  padding: 10px 14px;
+  font-size: 13px;
+  width: 100%;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: all 0.4s ease;
+}
+.requisitos-tooltip.visible { opacity: 1; transform: translateY(0); }
+.requisitos-tooltip li { margin-bottom: 4px; transition: color 0.3s ease; }
+
+/* Mensajes inline (requisitos / coincidencia) */
+.mensaje-inline {
+  position: absolute;
+  bottom: 6px;
+  left: 14px;
+  font-size: 12px;
+  color: rgba(239,68,68,0.9);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+/* Barra de seguridad moderna */
+.barra-seguridad {
+  position: relative;
+  height: 10px;
+  background: #d9d9d9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+.nivel-seguridad {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff4d4d, #ffb700, #22c55e);
+  transition: width 0.5s ease-in-out, background 0.5s ease;
+}
+.barra-seguridad .glow {
+  position: absolute;
+  top: 0; left: 0;
+  height: 100%;
+  width: 120%;
+  background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.4), transparent 70%);
+  animation: glowMove 2s infinite linear;
+}
+@keyframes glowMove {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(50%); }
+}
+
+/* Texto seguridad */
+.texto-seguridad {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+}
+
+/* Botón */
+.btn-login {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, #f4a300, #f1bb4f);
+  border: none;
+  color: white;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 25px;
+  transition: all 0.4s ease;
+}
+.btn-login:hover { transform: scale(1.05); }
+
+/* Lado derecho */
+.card-right {
+  flex: 1;
+  background: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.logo-panel { max-width: 300px; height: auto; }
+
+/* Responsive opcional */
+@media (max-width: 768px) {
+  .card-login { width: 92%; height: auto; flex-direction: column; }
+  .card-right { padding: 24px; }
+}
+</style>
+
+</body>
+</html>

@@ -1,3 +1,6 @@
+# ==========================
+# LARAVEL / PHP
+# ==========================
 /.phpunit.cache
 /node_modules
 /public/build
@@ -7,17 +10,42 @@
 /storage/pail
 /vendor
 .env
-.env.backup
-.env.production
+.env.*
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
 Homestead.yaml
 npm-debug.log
 yarn-error.log
-/auth.json
+auth.json
+
+# IDE / Sistema
 /.fleet
 /.idea
 /.nova
 /.vscode
 /.zed
+.DS_Store
+Thumbs.db
+
+# ==========================
+# API NODE.JS (carpeta api)
+# ==========================
+api/node_modules/
+api/tmp/
+api/uploads/
+api/backups/
+api/.env
+api/.env.*
+api/.DS_Store
+api/package-lock.json
+
+# ==========================
+# Archivos temporales / logs
+# ==========================
+logs/
+*.log
+*.bak
+*.tmp
+*.swp
+*.swo

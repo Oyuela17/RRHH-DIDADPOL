@@ -16,8 +16,6 @@
     'resources/css/roles.css',
     'resources/css/oficinas.css',
     'resources/css/tipos_empleados.css',
-    'resources/css/titulos.css',
-    'resources/css/vacaciones.css',
     'resources/css/permisos.css',
     'resources/css/puestos.css',
     'resources/css/personas.css',

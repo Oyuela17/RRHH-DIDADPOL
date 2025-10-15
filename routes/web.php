@@ -19,11 +19,11 @@ use App\Http\Controllers\ControlAsistenciaController;
 use App\Http\Controllers\ControlAsistenciaAdminController;
 use App\Http\Controllers\CalendarioController;
 use App\Http\Controllers\TipoEmpleadoController;
-use App\Http\Controllers\TitulosController;
-use App\Http\Controllers\VacacionesController;
 use App\Http\Controllers\BackupsUiController;
+use App\Http\Controllers\BitacoraController;
 
-Route::middleware(['auth'])->group(function () {
+
+    Route::middleware(['auth'])->group(function () {
     Route::get('/backups', [BackupsUiController::class, 'index'])->name('backups.index');
 
     Route::post('/backups/run', [BackupsUiController::class, 'run'])->name('backups.run');
@@ -37,6 +37,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/backups/schedule/test', [BackupsUiController::class, 'testSchedule'])->name('backups.schedule.test');
 });
 
+// Bitacora
+Route::get('/bitacora', [BitacoraController::class, 'index'])->name('bitacora.index');
 
 // Planilla
 Route::match(['get', 'post'], '/planilla', [ App\Http\Controllers\PlanillaController::class, 'index'])->name('planilla');
@@ -170,21 +172,6 @@ Route::get('/tipos', [TipoEmpleadoController::class, 'index'])->name('tipos.inde
 Route::post('/tipos', [TipoEmpleadoController::class, 'store'])->name('tipos.store');
 Route::put('/tipos/{id}', [TipoEmpleadoController::class, 'update'])->name('tipos.update');
 Route::delete('/tipos/{id}', [TipoEmpleadoController::class, 'destroy'])->name('tipos.destroy');
-
-//TITULOS
-Route::get('/titulos', [TitulosController::class, 'index'])->name('titulos.index');
-Route::post('/titulos', [TitulosController::class, 'store'])->name('titulos.store');
-Route::put('/titulos/{id}', [TitulosController::class, 'update'])->name('titulos.update');
-Route::delete('/titulos/{id}', [TitulosController::class, 'destroy'])->name('titulos.destroy');
-
-// Vacaciones
-Route::get('/vacaciones', [VacacionesController::class, 'index'])->name('vacaciones.index');
-Route::post('/vacaciones/guardar', [VacacionesController::class, 'store'])->name('vacaciones.store');
-Route::post('/vacaciones/estado', [VacacionesController::class, 'cambiarEstado'])->name('vacaciones.estado');
-
-// Exportaciones Vacaciones
-Route::get('/vacaciones/export/csv', [VacacionesController::class, 'exportCsv'])->name('vacaciones.export.csv');
-Route::get('/vacaciones/export/pdf', [VacacionesController::class, 'exportPdf'])->name('vacaciones.export.pdf');
 
 });
 

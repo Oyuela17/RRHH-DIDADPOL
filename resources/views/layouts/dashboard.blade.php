@@ -17,13 +17,11 @@
     'resources/css/roles.css',
     'resources/css/home.css',
     'resources/css/planilla.css',
-    'resources/css/vacaciones.css',
     'resources/css/calendario.css',
     'resources/css/backups.css',
     'resources/css/oficinas.css',
     'resources/css/permisos.css',
     'resources/css/tipos_empleados.css',
-    'resources/css/titulos.css',
     'resources/css/puestos.css',
     'resources/css/personas.css',
     'resources/css/asistencia.css',
@@ -80,9 +78,17 @@
             <li><a href="{{ route('asistencia.index') }}"><i class="fas fa-user-check"></i> Asistencia</a></li>
             @endif
 
-            @if(in_array('CONTROL DE ASISTENCIA', $modulosPermitidos))
-            <li><a href="{{ route('control_asistencia.admin') }}"><i class="fas fa-calendar-check"></i> Control de Asistencia</a></li>
+           @if(in_array('CONTROL DE ASISTENCIA', $modulosPermitidos))
+           <li class="has-submenu">
+                <input type="checkbox" id="submenu-control-asistencia" class="submenu-toggle" />
+                <label for="submenu-control-asistencia">
+                <i class="fas fa-user-clock"></i> Control de Asistencia</label>
+                <ul class="submenu">
+                     <li><a href="{{ route('control_asistencia.admin') }}"></i> Control de Asistencia</a></li>
+                </ul>
+            </li>
             @endif
+
 
             @if(in_array('RECURSOS HUMANOS', $modulosPermitidos))
             <li class="has-submenu">
@@ -91,8 +97,6 @@
                 <ul class="submenu">
                     <li><a href="{{ route('datos_empresa.index') }}">Datos de la Empresa</a></li>
                     <li><a href="{{ route('personas.index') }}">Personas</a></li>
-                     <li><a href="{{ route('vacaciones.index') }}">Vacaciones</a></li>
-
                 </ul>
             </li>
             @endif
@@ -108,7 +112,6 @@
                     <li><a href="{{ route('oficinas.index') }}">Oficinas</a></li>
                     <li><a href="{{ route('puestos.index') }}">Puestos</a></li>
                     <li><a href="{{ route('tipos.index') }}">Tipos de Empleado</a></li>
-                    <li><a href="{{ route('titulos.index') }}">Títulos Académicos</a></li>
                 </ul>
             </li>
             @endif
@@ -122,6 +125,8 @@
                     <li><a href="{{ route('roles.index') }}">Roles</a></li>
                     <li><a href="{{ route('usuarios_roles.index') }}">Usuarios Roles</a></li>
                     <li><a href="{{ route('permisos.index') }}">Permisos</a></li>
+                     <li><a href="{{ route('bitacora.index') }}">Bitácora</a></li>
+
                 </ul>
             </li>
             @endif

@@ -34,24 +34,39 @@ class BackupsUiController extends Controller
     public function index()
     {
         $files = [];
+
+        // 1️⃣ Intentar obtener desde la API Node.js
         try {
             $resp = Http::withHeaders($this->headers)->timeout(15)->get($this->apiBackups);
             if ($resp->ok()) {
                 $files = $resp->json() ?? [];
             }
         } catch (\Throwable $e) {
-            // Silencioso, caemos al fallback local
+            // Si la API no responde, pasamos al fallback local
         }
 
-        // Fallback local si la API no respondió
+        // 2️⃣ Fallback local con LEFT JOIN para incluir usuario_nombre
         if (empty($files)) {
-            $files = DB::table('public.backup')
-                ->orderByDesc('id')
+            $files = DB::table('public.backup as b')
+                ->leftJoin('public.users as u', 'u.id', '=', 'b.usuario_id')
+                ->selectRaw("
+                    b.id,
+                    b.nombre_archivo,
+                    b.ruta_archivo,
+                    b.fecha,
+                    b.usuario_id,
+                    COALESCE(u.name::text, CONCAT('#', b.usuario_id::text)) AS usuario_nombre,
+                    b.tipo_backup,
+                    b.tamano,
+                    b.estado
+                ")
+                ->orderByDesc('b.fecha')
                 ->get()
-                ->map(fn ($r) => (array) $r)
+                ->map(fn($r) => (array) $r)
                 ->toArray();
         }
 
+        // 3️⃣ Preparar datos del último backup
         $ultimo = $files[0] ?? null;
         $ultimoBackup = $ultimo ? [
             'fecha'     => $ultimo['fecha'] ?? null,
@@ -116,10 +131,10 @@ class BackupsUiController extends Controller
                 ]);
             }
         } catch (\Throwable $e) {
-            // Silencioso, caemos al plan B local
+            // Si falla la API, usamos el archivo local
         }
 
-        // Fallback local directo al archivo
+        // Fallback local
         $row = DB::table('public.backup')->where('id', $id)->first();
         abort_unless($row, 404, 'Backup no encontrado.');
         $path = $row->ruta_archivo;
@@ -138,7 +153,7 @@ class BackupsUiController extends Controller
                 return back()->with('ok', 'Backup eliminado.');
             }
         } catch (\Throwable $e) {
-            // seguimos al fallback
+            // seguimos al fallback local
         }
 
         // Fallback local
@@ -157,12 +172,11 @@ class BackupsUiController extends Controller
     /** Restaurar subiendo archivo (.sql / .dump / .backup / .zip) */
     public function restoreUpload(Request $req)
     {
-        // Acepta extensiones modernas del index.js
         $req->validate(['file' => 'required|file|mimes:sql,zip,dump,backup']);
 
         try {
             $res = Http::withHeaders($this->headers)
-                ->timeout(600) // restaurar puede tomar tiempo
+                ->timeout(600)
                 ->attach(
                     'file',
                     file_get_contents($req->file('file')->getRealPath()),
@@ -173,18 +187,14 @@ class BackupsUiController extends Controller
             if ($res->ok()) {
                 $j = $res->json();
                 $logs = $this->stringifyLogs($j['logs'] ?? null);
-                return back()
-                    ->with('ok', 'Restauración completada.')
-                    ->with('restore_log', $logs);
+                return back()->with('ok', 'Restauración completada.')->with('restore_log', $logs);
             }
 
             $j = $res->json();
             $detail = $j['detail'] ?? ($j['error'] ?? 'No se pudo restaurar.');
             $logs = $this->stringifyLogs($j['logs'] ?? null);
 
-            return back()
-                ->with('err', 'Falló restauración: ' . $detail)
-                ->with('restore_log', $logs);
+            return back()->with('err', 'Falló restauración: ' . $detail)->with('restore_log', $logs);
         } catch (\Throwable $e) {
             return back()->with('err', 'No se pudo contactar la API: ' . $e->getMessage());
         }
@@ -199,25 +209,19 @@ class BackupsUiController extends Controller
         try {
             $res = Http::withHeaders($this->headers)
                 ->timeout(600)
-                ->post($this->apiRestoreUse, [
-                    'path' => $row->ruta_archivo,
-                ]);
+                ->post($this->apiRestoreUse, ['path' => $row->ruta_archivo]);
 
             if ($res->ok()) {
                 $j = $res->json();
                 $logs = $this->stringifyLogs($j['logs'] ?? null);
-                return back()
-                    ->with('ok', 'Restauración completada.')
-                    ->with('restore_log', $logs);
+                return back()->with('ok', 'Restauración completada.')->with('restore_log', $logs);
             }
 
             $j = $res->json();
             $detail = $j['detail'] ?? ($j['error'] ?? 'No se pudo restaurar.');
             $logs = $this->stringifyLogs($j['logs'] ?? null);
 
-            return back()
-                ->with('err', 'Falló restauración: ' . $detail)
-                ->with('restore_log', $logs);
+            return back()->with('err', 'Falló restauración: ' . $detail)->with('restore_log', $logs);
         } catch (\Throwable $e) {
             return back()->with('err', 'No se pudo contactar la API: ' . $e->getMessage());
         }
@@ -226,7 +230,7 @@ class BackupsUiController extends Controller
     /** Guardar configuración (placeholder) */
     public function saveSchedule(Request $req)
     {
-        // Aquí guardarías config en DB si aplica
+        // Aquí guardarías configuración si aplicara
         return back()->with('ok', 'Configuración guardada.');
     }
 
@@ -238,19 +242,11 @@ class BackupsUiController extends Controller
 
     /** ========= Helpers ========= */
 
-    /**
-     * Convierte el array de logs devuelto por la API Node a un string plano.
-     * Formato esperado:
-     *  [
-     *    { file: '/ruta/a.sql', ok: true, stdout: '...', stderr: '...' },
-     *    { ok: true, stdout: '...', stderr: '...' } // cuando no es ZIP hay un solo item
-     *  ]
-     */
+    /** Convierte el array de logs devuelto por la API Node a texto legible */
     private function stringifyLogs($logs): ?string
     {
         if (!$logs) return null;
 
-        // logs puede ser un array de items o un solo item
         if (!is_array($logs)) {
             return is_string($logs) ? $logs : json_encode($logs, JSON_PRETTY_PRINT);
         }
@@ -261,8 +257,9 @@ class BackupsUiController extends Controller
                 $out[] = is_string($item) ? $item : json_encode($item, JSON_PRETTY_PRINT);
                 continue;
             }
+
             $name = $item['file'] ?? ("step_" . ($i + 1));
-            $ok   = array_key_exists('ok', $item) ? ($item['ok'] ? 'OK' : 'FAIL') : 'OK';
+            $ok = array_key_exists('ok', $item) ? ($item['ok'] ? 'OK' : 'FAIL') : 'OK';
             $stdout = trim((string)($item['stdout'] ?? ''));
             $stderr = trim((string)($item['stderr'] ?? ''));
 
@@ -271,7 +268,7 @@ class BackupsUiController extends Controller
             if ($stderr !== '') $chunk .= "\nSTDERR:\n" . $stderr;
             $out[] = $chunk;
         }
+
         return implode("\n\n-------------------------\n\n", $out);
     }
 }
-

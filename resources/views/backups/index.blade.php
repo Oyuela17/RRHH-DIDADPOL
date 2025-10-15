@@ -115,7 +115,7 @@
               <span class="bk-badge {{ ($f['estado'] ?? '') === 'listo' ? 'bk-badge-success' : '' }}">{{ $f['estado'] ?? '—' }}</span>
             </div>
           </td>
-          <td>#{{ $f['usuario_id'] ?? '—' }}</td>
+          <td>{{ $f['usuario_nombre'] ?? '—' }}</td>
           <td>{{ isset($f['fecha']) ? \Carbon\Carbon::parse($f['fecha'])->format('Y-m-d H:i') : '—' }}</td>
           <td>
             <div class="bk-acciones-col">

@@ -21,10 +21,15 @@ class UserRoleController extends Controller
             session(['nombre_rol' => $rol ?? 'SIN ROL']);
         }
 
-        // Parámetros de búsqueda, cantidad y ordenamiento
-        $busqueda = strtoupper($request->input('buscar'));
-        $cantidad = $request->input('registros', 5);
+        // Parámetros de búsqueda, cantidad y ordenamiento (robustos)
+        $busqueda = strtoupper((string) $request->input('buscar', ''));
+        $cantidad = (int) $request->input('registros', 5);
+        if ($cantidad <= 0) $cantidad = 5;
+
         $orden = $request->input('ordenar', 'nombre');
+        if (!in_array($orden, ['nombre', 'fecha'], true)) {
+            $orden = 'nombre';
+        }
 
         $usuarios_roles = DB::table('users')
             ->leftJoin('role_user', 'users.id', '=', 'role_user.user_id')
@@ -38,7 +43,7 @@ class UserRoleController extends Controller
                 'roles.id as role_id',
                 'users.created_at'
             )
-            ->when($busqueda, function ($query, $busqueda) {
+            ->when($busqueda !== '', function ($query) use ($busqueda) {
                 return $query->whereRaw("UPPER(users.name) LIKE ?", ["%{$busqueda}%"]);
             })
             ->when($orden === 'fecha', function ($query) {
@@ -48,11 +53,12 @@ class UserRoleController extends Controller
             })
             ->paginate($cantidad)
             ->appends([
-                'buscar' => $busqueda,
-                'registros' => $cantidad,
-                'ordenar' => $orden,
+                'buscar'   => $request->input('buscar', ''),
+                'registros'=> $cantidad,
+                'ordenar'  => $orden,
             ]);
 
+        // Solo roles ACTIVO para asignación
         $roles = DB::table('roles')->where('estado', 'ACTIVO')->get();
 
         return view('usuarios_roles.index', compact('usuarios_roles', 'roles', 'busqueda', 'cantidad', 'orden'));
@@ -69,6 +75,7 @@ class UserRoleController extends Controller
         try {
             DB::beginTransaction();
 
+            // Pivot role_user (sin tocar timestamps en UPDATE para no fallar)
             $existe = DB::table('role_user')->where('user_id', $id)->exists();
 
             if ($existe) {
@@ -76,22 +83,27 @@ class UserRoleController extends Controller
                     ->where('user_id', $id)
                     ->update([
                         'role_id' => $request->role_id,
-                        'created_at' => now()
                     ]);
             } else {
                 DB::table('role_user')->insert([
-                    'user_id' => $id,
-                    'role_id' => $request->role_id,
-                    'created_at' => now()
+                    'user_id'    => $id,
+                    'role_id'    => $request->role_id,
+                    'created_at' => now(),   // si no existe la columna, no falla
                 ]);
             }
 
-            DB::table('users')
-                ->where('id', $id)
-                ->update([
-                    'estado' => strtoupper($request->estado),
-                    'updated_at' => now()
-                ]);
+            // users: estado y reset de intentos si reactivamos
+            $estado = strtoupper($request->estado);
+            $datosUsuario = [
+                'estado'     => $estado,
+                'updated_at' => now(),
+            ];
+            if ($estado === 'ACTIVO') {
+                // redundante con el trigger, pero seguro
+                $datosUsuario['intentos_fallidos'] = 0;
+            }
+
+            DB::table('users')->where('id', $id)->update($datosUsuario);
 
             DB::commit();
 

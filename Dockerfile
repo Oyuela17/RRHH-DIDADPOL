@@ -22,7 +22,7 @@ RUN set -eux; \
         zlib1g-dev; \
     update-ca-certificates; \
     docker-php-ext-install -j"$(nproc)" pdo pdo_pgsql zip; \
-    apt-get clean; rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*
 
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -33,9 +33,8 @@ COPY . .
 
 # Instalar dependencias Laravel (sin ejecutar artisan todavía)
 RUN set -eux; \
-    composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; \
-    mkdir -p storage bootstrap/cache; \
-    chmod -R 775 storage bootstrap/cache;
+    install -d -m 0775 storage bootstrap/cache; \
+    composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
 # Comando de inicio (ya con las variables de entorno disponibles)
 CMD set -eux; \
@@ -45,7 +44,3 @@ CMD set -eux; \
     php artisan view:clear || true; \
     php artisan migrate --force || true; \
     exec apache2-foreground
-
-
-EXPOSE 80
-CMD ["apache2-foreground"]

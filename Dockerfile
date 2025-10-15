@@ -74,19 +74,22 @@ RUN set -eux; \
 # 2) Copia el resto del proyecto
 COPY . .
 
-# 3) Permisos para runtime de Laravel (+ symlink de storage si aplica)
+# 3) Permisos para runtime de Laravel (+ log file y symlink de storage)
 RUN set -eux; \
-  install -d -m 0775 storage/logs; \
+  mkdir -p storage/logs bootstrap/cache; \
+  touch storage/logs/laravel.log; \
   chown -R www-data:www-data storage bootstrap/cache; \
-  chmod -R 775 storage bootstrap/cache storage/logs; \
+  find storage bootstrap/cache -type d -exec chmod 775 {} \; ; \
+  find storage bootstrap/cache -type f -exec chmod 664 {} \; ; \
   php artisan storage:link || true
 
 # ---------- Arranque ----------
-# (limpia/optimiza y migra si hay DB; no rompe si falla)
+# Limpia/optimiza y migra si hay DB; no rompe si falla
 CMD set -eux; \
   php artisan config:clear   || true; \
   php artisan cache:clear    || true; \
   php artisan route:clear    || true; \
   php artisan view:clear     || true; \
-  php artisan migrate --force || true; \
+  php artisan key:generate --force || true; \
+  php artisan migrate --force      || true; \
   exec apache2-foreground

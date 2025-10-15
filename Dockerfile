@@ -31,16 +31,21 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 COPY . .
 
-# Instalar dependencias Laravel y cachear
+# Instalar dependencias Laravel (sin ejecutar artisan todavía)
 RUN set -eux; \
     composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; \
-    php artisan key:generate --force || true; \
     mkdir -p storage bootstrap/cache; \
     chown -R www-data:www-data storage bootstrap/cache; \
-    chmod -R 775 storage bootstrap/cache; \
-    php artisan config:cache; \
-    php artisan route:cache; \
-    php artisan view:cache
+    chmod -R 775 storage bootstrap/cache;
+
+# Comando de inicio (ya con las variables de entorno disponibles)
+CMD set -eux; \
+    php artisan config:clear || true; \
+    php artisan cache:clear || true; \
+    php artisan route:clear || true; \
+    php artisan view:clear || true; \
+    php artisan migrate --force || true; \
+    exec apache2-foreground
 
 EXPOSE 80
 CMD ["apache2-foreground"]

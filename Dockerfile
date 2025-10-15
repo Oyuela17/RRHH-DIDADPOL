@@ -22,7 +22,7 @@ RUN set -eux; \
   update-ca-certificates; \
   rm -rf /var/lib/apt/lists/*
 
-# ---------- Extensiones PHP (bloques con logs claros) ----------
+# ---------- Extensiones PHP ----------
 # zip + pdo + pgsql
 RUN set -eux; echo ">>> PHP ext: pdo, pdo_pgsql, zip"; \
   docker-php-ext-install -j"$(nproc)" pdo pdo_pgsql zip
@@ -44,6 +44,18 @@ RUN set -eux; echo ">>> PHP ext: gd"; \
   docker-php-ext-configure gd --with-jpeg --with-freetype; \
   docker-php-ext-install -j"$(nproc)" gd
 
+# OPcache para prod
+RUN set -eux; echo ">>> PHP ext: opcache"; \
+  docker-php-ext-install opcache; \
+  { \
+    echo 'opcache.enable=1'; \
+    echo 'opcache.enable_cli=1'; \
+    echo 'opcache.validate_timestamps=0'; \
+    echo 'opcache.memory_consumption=128'; \
+    echo 'opcache.interned_strings_buffer=16'; \
+    echo 'opcache.max_accelerated_files=10000'; \
+  } > /usr/local/etc/php/conf.d/opcache.ini
+
 # ---------- Composer ----------
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
@@ -56,16 +68,18 @@ WORKDIR /var/www/html
 # 1) Instala vendor en una capa caché (rápido en redeploys)
 COPY composer.json composer.lock ./
 RUN set -eux; \
-  install -d -m 0775 storage bootstrap/cache; \
+  install -d -m 0775 storage bootstrap/cache storage/logs; \
   composer install --no-dev --prefer-dist --optimize-autoloader --no-scripts
 
 # 2) Copia el resto del proyecto
 COPY . .
 
-# 3) Permisos para runtime de Laravel
+# 3) Permisos para runtime de Laravel (+ symlink de storage si aplica)
 RUN set -eux; \
+  install -d -m 0775 storage/logs; \
   chown -R www-data:www-data storage bootstrap/cache; \
-  chmod -R 775 storage bootstrap/cache
+  chmod -R 775 storage bootstrap/cache storage/logs; \
+  php artisan storage:link || true
 
 # ---------- Arranque ----------
 # (limpia/optimiza y migra si hay DB; no rompe si falla)

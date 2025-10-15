@@ -16,10 +16,9 @@ return [
 
     'channels' => [
 
-        // SOLO stderr en el stack (sin depender de LOG_STACK)
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['stderr'],
+            'channels' => ['stderr'], // <- solo stderr, sin LOG_STACK
             'ignore_exceptions' => false,
         ],
 
@@ -63,9 +62,7 @@ return [
             'driver'  => 'monolog',
             'level'   => env('LOG_LEVEL', 'debug'),
             'handler' => StreamHandler::class,
-            'handler_with' => [
-                'stream' => 'php://stderr',
-            ],
+            'handler_with' => ['stream' => 'php://stderr'],
             'formatter'  => env('LOG_STDERR_FORMATTER'),
             'processors' => [PsrLogMessageProcessor::class],
         ],
@@ -88,7 +85,7 @@ return [
             'handler' => NullHandler::class,
         ],
 
-        // IMPORTANTÍSIMO: que la emergencia vaya a stderr
+        // ¡Clave! Emergencias también a stderr
         'emergency' => [
             'path' => 'php://stderr',
         ],

@@ -22,26 +22,11 @@ RUN set -eux; \
   rm -rf /var/lib/apt/lists/*
 
 # ---------- Extensiones PHP ----------
-# zip + pdo + pgsql (incluye pgsql nativo para pg_connect)
-RUN set -eux; echo ">>> PHP ext: pdo, pdo_pgsql, pgsql, zip"; \
-  docker-php-ext-install -j"$(nproc)" pdo pdo_pgsql pgsql zip
-
-# mbstring
-RUN set -eux; docker-php-ext-install -j"$(nproc)" mbstring
-
-# bcmath
-RUN set -eux; docker-php-ext-install -j"$(nproc)" bcmath
-
-# exif
-RUN set -eux; docker-php-ext-install -j"$(nproc)" exif
-
-# gd (requiere las libs de jpeg/png/freetype ya instaladas)
+# Incluye pgsql (pg_connect) y pdo_pgsql
 RUN set -eux; \
+  docker-php-ext-install -j"$(nproc)" pdo pdo_pgsql pgsql zip mbstring bcmath exif; \
   docker-php-ext-configure gd --with-jpeg --with-freetype; \
-  docker-php-ext-install -j"$(nproc)" gd
-
-# OPcache para prod
-RUN set -eux; \
+  docker-php-ext-install -j"$(nproc)" gd; \
   docker-php-ext-install opcache; \
   { \
     echo 'opcache.enable=1'; \
@@ -70,6 +55,9 @@ RUN set -eux; \
 # 2) Copiar el resto del proyecto
 COPY . .
 
+# 2.1) Asegurarnos de NO hornear un .env del repo
+RUN set -eux; rm -f .env || true
+
 # 3) Permisos runtime (+storage:link)
 RUN set -eux; \
   mkdir -p storage/logs bootstrap/cache; \
@@ -80,7 +68,7 @@ RUN set -eux; \
   php artisan storage:link || true
 
 # ---------- Arranque ----------
-# Limpia/optimiza y migra; borra caches para evitar logging viejo
+# Borra caches y migra cada vez que levanta (no hay Shell en free tier)
 CMD set -eux; \
   rm -f bootstrap/cache/config.php bootstrap/cache/services.php || true; \
   php artisan config:clear   || true; \

@@ -35,7 +35,6 @@ COPY . .
 RUN set -eux; \
     composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; \
     mkdir -p storage bootstrap/cache; \
-    chown -R www-data:www-data storage bootstrap/cache; \
     chmod -R 775 storage bootstrap/cache;
 
 # Comando de inicio (ya con las variables de entorno disponibles)
@@ -46,6 +45,7 @@ CMD set -eux; \
     php artisan view:clear || true; \
     php artisan migrate --force || true; \
     exec apache2-foreground
+
 
 EXPOSE 80
 CMD ["apache2-foreground"]

@@ -10,7 +10,6 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ---------- Paquetes del sistema ----------
-# (build-essential, autoconf, pkg-config para compilar; libs para zip, pgsql y gd)
 RUN set -eux; \
   apt-get update -o Acquire::Retries=5; \
   apt-get install -y --no-install-recommends \
@@ -23,29 +22,26 @@ RUN set -eux; \
   rm -rf /var/lib/apt/lists/*
 
 # ---------- Extensiones PHP ----------
-# zip + pdo + pgsql
-RUN set -eux; echo ">>> PHP ext: pdo, pdo_pgsql, zip"; \
-  docker-php-ext-install -j"$(nproc)" pdo pdo_pgsql zip
+# zip + pdo + pgsql (incluye pgsql nativo para pg_connect)
+RUN set -eux; echo ">>> PHP ext: pdo, pdo_pgsql, pgsql, zip"; \
+  docker-php-ext-install -j"$(nproc)" pdo pdo_pgsql pgsql zip
 
 # mbstring
-RUN set -eux; echo ">>> PHP ext: mbstring"; \
-  docker-php-ext-install -j"$(nproc)" mbstring
+RUN set -eux; docker-php-ext-install -j"$(nproc)" mbstring
 
 # bcmath
-RUN set -eux; echo ">>> PHP ext: bcmath"; \
-  docker-php-ext-install -j"$(nproc)" bcmath
+RUN set -eux; docker-php-ext-install -j"$(nproc)" bcmath
 
 # exif
-RUN set -eux; echo ">>> PHP ext: exif"; \
-  docker-php-ext-install -j"$(nproc)" exif
+RUN set -eux; docker-php-ext-install -j"$(nproc)" exif
 
 # gd (requiere las libs de jpeg/png/freetype ya instaladas)
-RUN set -eux; echo ">>> PHP ext: gd"; \
+RUN set -eux; \
   docker-php-ext-configure gd --with-jpeg --with-freetype; \
   docker-php-ext-install -j"$(nproc)" gd
 
 # OPcache para prod
-RUN set -eux; echo ">>> PHP ext: opcache"; \
+RUN set -eux; \
   docker-php-ext-install opcache; \
   { \
     echo 'opcache.enable=1'; \
@@ -65,16 +61,16 @@ ENV COMPOSER_ALLOW_SUPERUSER=1 \
 # ---------- App ----------
 WORKDIR /var/www/html
 
-# 1) Instala vendor en una capa caché (rápido en redeploys)
+# 1) Instalar vendor en capa cacheable
 COPY composer.json composer.lock ./
 RUN set -eux; \
   install -d -m 0775 storage bootstrap/cache storage/logs; \
   composer install --no-dev --prefer-dist --optimize-autoloader --no-scripts
 
-# 2) Copia el resto del proyecto
+# 2) Copiar el resto del proyecto
 COPY . .
 
-# 3) Permisos para runtime de Laravel (+ log file y symlink de storage)
+# 3) Permisos runtime (+storage:link)
 RUN set -eux; \
   mkdir -p storage/logs bootstrap/cache; \
   touch storage/logs/laravel.log; \
@@ -84,8 +80,9 @@ RUN set -eux; \
   php artisan storage:link || true
 
 # ---------- Arranque ----------
-# Limpia/optimiza y migra si hay DB; no rompe si falla
+# Limpia/optimiza y migra; borra caches para evitar logging viejo
 CMD set -eux; \
+  rm -f bootstrap/cache/config.php bootstrap/cache/services.php || true; \
   php artisan config:clear   || true; \
   php artisan cache:clear    || true; \
   php artisan route:clear    || true; \

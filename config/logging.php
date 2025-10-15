@@ -16,9 +16,10 @@ return [
 
     'channels' => [
 
+        // Solo stderr en el stack
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['stderr'], // <- solo stderr, sin LOG_STACK
+            'channels' => ['stderr'],
             'ignore_exceptions' => false,
         ],
 
@@ -85,7 +86,7 @@ return [
             'handler' => NullHandler::class,
         ],
 
-        // ¡Clave! Emergencias también a stderr
+        // ¡Clave! Emergencias a stderr (no archivo)
         'emergency' => [
             'path' => 'php://stderr',
         ],

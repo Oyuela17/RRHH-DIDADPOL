@@ -1,0 +1,409 @@
+/* ==========================
+   Reset básico y base
+========================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body, html {
+    height: 100%;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #005796, #8d99ae);
+    overflow-x: hidden;
+}
+
+/* ==========================
+   Navbar superior
+========================== */
+.navbar {
+    width: 100%;
+    height: 60px;
+    background: #003366;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.navbar-left .navbar-brand {
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.navbar-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 20px;
+}
+
+.user-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    font-family: 'Poppins', sans-serif;
+}
+
+.user-info-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.user-name {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #ffffff;
+    line-height: 1.2;
+}
+
+.user-role {
+    background-color: #00aaff;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-top: 2px;
+    max-width: 100%;
+    white-space: nowrap;
+}
+
+/* ==========================
+   Estructura principal
+========================== */
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    padding-top: 60px;
+}
+
+/* ==========================
+   Sidebar
+========================== */
+.sidebar {
+    width: 220px;
+    background: linear-gradient(180deg, #003366, #004a86);
+    color: #fff;
+    padding: 25px 0;
+    position: fixed;
+    top: 60px;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    overflow: hidden;
+    box-shadow: 3px 0 8px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100vh;
+}
+
+
+
+/* ==========================
+   Menú principal
+========================== */
+.menu {
+    list-style: none;
+    padding: 0 15px;
+    margin: 0;
+}
+
+.menu > li {
+    margin-bottom: 5px;
+    position: relative;
+}
+
+.menu > li > a,
+.has-submenu > label {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    color: #e0e0e0;
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 4px;
+    transition: background 0.3s ease, color 0.3s ease;
+    cursor: pointer;
+    gap: 10px;
+}
+
+.menu > li > a:hover,
+.menu > li > a:focus,
+.has-submenu > label:hover,
+.has-submenu > label:focus {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    outline: none;
+}
+
+.menu > li > a i,
+.has-submenu > label i {
+    font-size: 15px;
+    width: 20px;
+    min-width: 20px;
+    color: #f9f8f8;
+    text-align: center;
+}
+
+.menu > li.has-submenu > a::after,
+.has-submenu > label::after {
+    content: '▸';
+    margin-left: auto;
+    transition: transform 0.3s ease;
+    color: #f4a300;
+    font-weight: 700;
+}
+
+.submenu-toggle {
+    display: none;
+}
+
+.submenu-toggle:checked + label::after {
+    transform: rotate(90deg);
+}
+
+.submenu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), margin 0.3s ease;
+    padding-left: 0;
+    margin: 0;
+    background: linear-gradient(180deg, #003366, #004a86);
+    border-radius: 6px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.submenu-toggle:checked + label + .submenu {
+    max-height: 1000px;
+    margin: 10px 0 20px 0;
+}
+
+
+.submenu li {
+    margin: 0;
+}
+
+.submenu a {
+    display: block;
+    padding: 10px 20px !important;
+    color: #b0c4de !important;
+    font-size: 14px !important;
+    transition: all 0.2s;
+    position: relative;
+    border-left: 3px solid transparent;
+    text-decoration: none;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+.submenu a:hover,
+.submenu a:focus {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-left: 3px solid #f4a300;
+    outline: none;
+}
+
+/* ==========================
+   Contenido principal
+========================== */
+.main-content {
+    margin-left: 220px;
+    margin-top: 60px;
+    flex: 1;
+    background: #f7f9fc;
+    padding: 40px;
+    min-height: calc(100vh - 60px);
+}
+
+.main-content h2 {
+    font-size: 40px;
+    font-weight: 700;
+    color: #004a86;
+    margin-bottom: 30px;
+    position: relative;
+}
+
+.main-content h2::after {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 4px;
+    background: #f4a300;
+    margin-top: 8px;
+    border-radius: 2px;
+}
+
+.card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 25px;
+    box-shadow: 10px 10px 30px #d1d9e6, -10px -10px 30px #ffffff;
+    margin-top: 30px;
+    color: #333;
+    font-size: 18px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #f4a300, #f1bb4f);
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: 0.3s;
+    font-size: 14px;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #f1bb4f, #f4a300);
+    transform: translateY(-2px);
+}
+
+/* ==========================
+   Botón de cerrar sesión
+========================== */
+.logout-form-sidebar {
+    padding: 30px 10px 30px 30px;
+    margin-top: auto;
+}
+
+
+.logout-sidebar-button {
+    background: linear-gradient(135deg, #005796, #0078d7);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    padding: 12px 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    width: 100%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.logout-sidebar-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+    background: linear-gradient(135deg, #0078d7, #3399ff);
+}
+
+.logout-sidebar-button i {
+    font-size: 1rem;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==========================
+   Responsive
+========================== */
+@media (max-width: 768px) {
+    .dashboard-container {
+        flex-direction: column;
+        padding-top: 60px;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        padding: 15px;
+        position: fixed;
+        top: 60px;
+        left: 0;
+        bottom: auto;
+        box-shadow: none;
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 20px;
+        margin-top: 120px;
+    }
+
+    .menu {
+        display: flex;
+        gap: 20px;
+        padding: 0;
+    }
+
+    .menu > li {
+        margin-bottom: 0;
+    }
+
+    .menu > li > a,
+    .has-submenu > label {
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+
+    .submenu {
+        position: static;
+        max-height: none;
+        background: transparent;
+        padding-left: 0;
+        display: none;
+        margin: 0;
+        border-radius: 0;
+        width: auto;
+    }
+
+    .menu > li.has-submenu:focus-within > .submenu,
+    .menu > li.has-submenu:hover > .submenu {
+        display: block;
+        position: absolute;
+        background: #004a86;
+        border-radius: 4px;
+        top: 50px;
+        left: 0;
+        min-width: 180px;
+        padding: 10px 0;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        z-index: 1000;
+    }
+}
+
+.logout-form-sidebar {
+    position: absolute;
+    bottom: 80px;
+    left: 0;
+    width: 100%;
+    padding: 0 20px;
+}
+

@@ -1,0 +1,260 @@
+/* ===================== LAYOUT / SCROLL ===================== */
+html, body { overflow-x: visible !important; }
+.main-content, .container-planilla { overflow-x: visible !important; }
+
+.x-scroll {
+  width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+}solo quiero que el no sea mas angosto la columna y que la columna de rtn y dni sea mas grande para ver toda la informacion de un solo en la tabla 
+.x-scroll::-webkit-scrollbar { height: 10px; }
+.x-scroll::-webkit-scrollbar-thumb { background: #999; border-radius: 6px; }
+.x-scroll::-webkit-scrollbar-thumb:hover { background: #777; }
+
+/* ===================== PALETA ===================== */
+:root {
+  --azul: #0b3a63;          /* header */
+  --azul-osc: #072a49;      /* hover header/borde superior */
+  --borde: #9aa4b0;         /* líneas internas más oscuras */
+  --borde-ext: #6c7a89;     /* contorno más fuerte */
+  --texto: #0f172a;         /* texto base */
+  --gris-fila: #f7fafc;     /* hover fila */
+  --btn-prim: #06b6d4;      /* opcional */
+  --amarillo: #ffbb00;      /* Editar */
+  --amarillo-2: #ffaa00;
+  --rojo: #dc3545;          /* Eliminar */
+}
+
+/* ===================== TOOLBAR ===================== */
+.toolbar-planilla {
+  display: flex; align-items: center; gap: 20px;
+  margin: 18px 0 14px;
+}
+.toolbar-left {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.toolbar-left .lbl { font-size: .95rem; color: #334155; white-space: nowrap; }
+.toolbar-left input,
+.toolbar-left select {
+  height: 40px; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff;
+}
+#planillaSearch { min-width: 260px; }
+
+.btn-nuevo {
+  background: linear-gradient(90deg, var(--amarillo), var(--amarillo-2));
+  color: #111; border: 0; padding: 10px 18px; border-radius: 10px; font-weight: 700; cursor: pointer;
+  text-transform: uppercase; letter-spacing: .5px; white-space: nowrap;
+}
+.btn-nuevo:hover { filter: brightness(1.05); }
+
+/* ===================== TABLA PLANILLA ===================== */
+.x-scroll .tabla-planilla { width: max-content; min-width: 2500px; }  /* ⬅️ más ancha */
+
+.tabla-planilla {
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+  font-size: 12px;
+  color: var(--texto);
+  background: #fff;
+  border: 1px solid var(--borde-ext);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* ===== CABECERA ===== */
+.tabla-planilla thead th {
+  background: var(--azul);
+  color: #fff;
+  padding: 8px 10px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.15;
+  border-right: 1px solid rgba(255,255,255,.22);
+  border-bottom: 2px solid var(--azul-osc);
+}
+.tabla-planilla thead th:last-child { border-right: 0; }
+.tabla-planilla thead th:hover { background: var(--azul-osc); }
+
+/* ===== CUERPO ===== */
+.tabla-planilla tbody td {
+  padding: 8px 10px;
+  background: #fff;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  border-right: 1px solid var(--borde);
+  border-bottom: 1px solid var(--borde);
+}
+.tabla-planilla tbody tr:hover td { background: var(--gris-fila); }
+
+.tabla-planilla tbody td:first-child { border-left: 1px solid var(--borde); }
+.tabla-planilla tbody td:last-child { border-right: 0; }
+
+/* ===== ALINEACIÓN ===== */
+.tabla-planilla th.num, .tabla-planilla td.num { text-align: right; }
+.tabla-planilla th:nth-child(1), .tabla-planilla td:nth-child(1),
+.tabla-planilla th:nth-child(6), .tabla-planilla td:nth-child(6),
+.tabla-planilla th:nth-child(7), .tabla-planilla td:nth-child(7),
+.tabla-planilla th:nth-child(8), .tabla-planilla td:nth-child(8) { text-align: center; }
+
+/* ===== ANCHOS AMPLIOS POR COLUMNA (base) ===== */
+#tabla_planilla thead th:nth-child(1),  #tabla_planilla tbody td:nth-child(1)  { min-width: 60px;  }  /* NO */
+#tabla_planilla thead th:nth-child(2),  #tabla_planilla tbody td:nth-child(2)  { min-width: 240px; }  /* NOMBRE */
+#tabla_planilla thead th:nth-child(3),  #tabla_planilla tbody td:nth-child(3)  { min-width: 180px; }  /* RTN */
+#tabla_planilla thead th:nth-child(4),  #tabla_planilla tbody td:nth-child(4)  { min-width: 180px; }  /* DNI */
+#tabla_planilla thead th:nth-child(5),  #tabla_planilla tbody td:nth-child(5)  { min-width: 180px; }  /* CARGO */
+#tabla_planilla thead th:nth-child(6),  #tabla_planilla tbody td:nth-child(6)  { min-width: 120px; }  /* FECHA INGRESO */
+#tabla_planilla thead th:nth-child(7),  #tabla_planilla tbody td:nth-child(7)  { min-width: 70px;  }  /* DD */
+#tabla_planilla thead th:nth-child(8),  #tabla_planilla tbody td:nth-child(8)  { min-width: 70px;  }  /* DT */
+#tabla_planilla thead th:nth-child(9),  #tabla_planilla tbody td:nth-child(9)  { min-width: 140px; }  /* SALARIO MENSUAL */
+#tabla_planilla thead th:nth-child(10), #tabla_planilla tbody td:nth-child(10) { min-width: 140px; }  /* SALARIO BRUTO */
+#tabla_planilla thead th:nth-child(11), #tabla_planilla tbody td:nth-child(11) { min-width: 110px; }  /* IHSS */
+#tabla_planilla thead th:nth-child(12), #tabla_planilla tbody td:nth-child(12) { min-width: 110px; }  /* ISR */
+#tabla_planilla thead th:nth-child(13), #tabla_planilla tbody td:nth-child(13) { min-width: 130px; }  /* INJUPEMP */
+#tabla_planilla thead th:nth-child(14), #tabla_planilla tbody td:nth-child(14) { min-width: 140px; }  /* IMP. VECINAL */
+#tabla_planilla thead th:nth-child(15), #tabla_planilla tbody td:nth-child(15) { min-width: 150px; }  /* DÍAS DESCARGADOS */
+#tabla_planilla thead th:nth-child(16), #tabla_planilla tbody td:nth-child(16) { min-width: 150px; }  /* INJ. REINGRESOS */
+#tabla_planilla thead th:nth-child(17), #tabla_planilla tbody td:nth-child(17) { min-width: 150px; }  /* INJ. PRÉSTAMOS */
+#tabla_planilla thead th:nth-child(18), #tabla_planilla tbody td:nth-child(18) { min-width: 170px; }  /* PRÉST. ATLÁNTIDA */
+#tabla_planilla thead th:nth-child(19), #tabla_planilla tbody td:nth-child(19) { min-width: 150px; }  /* PAGOS DEDUCIBLES */
+#tabla_planilla thead th:nth-child(20), #tabla_planilla tbody td:nth-child(20) { min-width: 170px; }  /* COLEGIO ADMON. */
+#tabla_planilla thead th:nth-child(21), #tabla_planilla tbody td:nth-child(21) { min-width: 140px; }  /* COOP. ELGA */
+#tabla_planilla thead th:nth-child(22), #tabla_planilla tbody td:nth-child(22) { min-width: 150px; }  /* TOTAL DED. */
+#tabla_planilla thead th:nth-child(23), #tabla_planilla tbody td:nth-child(23) { min-width: 150px; }  /* TOTAL PAGAR */
+#tabla_planilla thead th:nth-child(24), #tabla_planilla tbody td:nth-child(24) { min-width: 160px; }  /* ACCIONES */
+
+/* ===== COLUMNA ACCIONES ===== */
+.tabla-planilla th:last-child,
+.tabla-planilla td:last-child { text-align: center; }
+.acciones-col { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; }
+.acciones-col .btn-editar-vis,
+.acciones-col .btn-eliminar-vis {
+  display: flex; align-items: center; justify-content: center;
+  height: 34px; width: 100%;
+  padding: 0 12px; font-size: 13px; font-weight: 700; border-radius: 10px; border: 0; cursor: pointer;
+}
+.acciones-col .btn-editar-vis { background: linear-gradient(90deg, var(--amarillo), var(--amarillo-2)); color: #111; }
+.acciones-col .btn-eliminar-vis { background: var(--rojo); color: #fff; }
+.acciones-col .btn-editar-vis:hover,
+.acciones-col .btn-eliminar-vis:hover { filter: brightness(1.05); }
+
+/* ===== DataTables: quitar flechas de orden ===== */
+table.dataTable thead .sorting:before,
+table.dataTable thead .sorting:after,
+table.dataTable thead .sorting_asc:before,
+table.dataTable thead .sorting_asc:after,
+table.dataTable thead .sorting_desc:before,
+table.dataTable thead .sorting_desc:after { display: none !important; }
+table.dataTable thead th.sorting,
+table.dataTable thead th.sorting_asc,
+table.dataTable thead th.sorting_desc,
+table.dataTable thead th.sorting_disabled { background-image: none !important; }
+
+/* ===== Mantener tamaño al refrescar ===== */
+#tabla_planilla.dataTable { font-size: 12px !important; }
+#tabla_planilla.dataTable thead th,
+#tabla_planilla.dataTable tbody td { padding: 8px 10px !important; }
+#tabla_planilla thead th {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible !important;
+}
+
+/* ===================== MODAL ===================== */
+.modal-planilla {
+  position: fixed; inset: 0; display: none; justify-content: center; align-items: center;
+  background: rgba(0,0,0,.4); z-index: 1000;
+}
+.modal-planilla .modal-contenido {
+  background: #fff; border-radius: 14px; width: 90%; max-width: 1100px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+  max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;
+  animation: fadeIn .25s ease;
+}
+.modal-planilla .modal-header {
+  padding: 16px 20px; background: var(--azul); color: #fff; font-size: 18px; font-weight: 700;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-planilla .modal-body { flex: 1 1 auto; padding: 20px; background: #f9fbfe; overflow: auto; }
+.modal-planilla .modal-footer { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 10px; padding: 16px 20px; background: #fff; }
+.btn-close-x { background: transparent; border: 0; font-size: 22px; color: #fff; cursor: pointer; }
+
+.card-soft { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.form-label { font-weight: 600; margin-bottom: 4px; color: #334155; }
+.form-control, .form-select { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 14px; background: #fff; }
+.form-control[readonly] { background: #f4f7fb; }
+.grid { display: grid; gap: 12px; }
+.grid-2 { grid-template-columns: repeat(2,1fr); }
+.grid-3 { grid-template-columns: repeat(3,1fr); }
+.grid-4 { grid-template-columns: repeat(4,1fr); }
+@media (max-width: 992px) { .grid-4 { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 768px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+.btn { padding: 10px 14px; border-radius: 10px; font-weight: 600; border: 0; cursor: pointer; }
+.btn-primary { background: var(--azul); color: #fff; }
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-danger { background: var(--rojo); color: #fff; }
+.btn-danger:hover { filter: brightness(1.05); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
+
+/* Alinear verticalmente al centro todo el cuerpo de la tabla */
+#tabla_planilla tbody td { vertical-align: middle !important; }
+
+/* NOMBRE y CARGO → multilínea, pero centrados verticalmente */
+#tabla_planilla tbody td:nth-child(2),
+#tabla_planilla tbody td:nth-child(5) {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  word-break: break-word;
+  line-height: 1.25;
+  min-width: 220px;
+  vertical-align: middle !important;
+  text-align: center;
+}
+
+/* ========= AJUSTES SOLICITADOS ========= */
+
+/* 1) Columna NO: compacta (solo lo necesario) */
+#tabla_planilla thead th:nth-child(1),
+#tabla_planilla tbody td:nth-child(1){
+  width: 1% !important;            /* obliga al mínimo posible */
+  min-width: 44px !important;      /* pero sin romper el número */
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* 2) RTN (3) y DNI (4): centrados y con aire lateral, sin hacerse gigantes */
+#tabla_planilla thead th:nth-child(3),
+#tabla_planilla thead th:nth-child(4),
+#tabla_planilla tbody td:nth-child(3),
+#tabla_planilla tbody td:nth-child(4){
+  min-width: 220px !important;     /* ancho razonable */
+  white-space: nowrap !important;
+  text-align: center !important;   /* centrado horizontal */
+  vertical-align: middle !important;
+  padding-left: 16px !important;   /* aire a los lados para que no pegue a la línea */
+  padding-right: 16px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* RTN (col 3) y DNI (col 4): sin elipsis y con salto de línea */
+#tabla_planilla tbody td:nth-child(3),
+#tabla_planilla tbody td:nth-child(4) {
+  white-space: normal !important;   /* permite varias líneas */
+  overflow: visible !important;     /* no ocultar contenido */
+  text-overflow: clip !important;   /* sin “...” */
+  word-break: break-word;           /* rompe en guiones o donde pueda */
+  overflow-wrap: anywhere;          /* si es puro número, igual rompe */
+  line-height: 1.2;
+  text-align: center;
+  min-width: 120px;                 /* ajusta si quieres más/menos ancho */
+  max-width: 160px;                 /* fuerza el salto y evita que se haga gigante */
+}

@@ -1,0 +1,286 @@
+/* ---------------- CONTENEDOR PRINCIPAL ---------------- */
+.tipos-wrapper {
+  max-width: 1100px;
+  margin: 40px auto;
+  padding: 30px 40px;
+  background-color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.1);
+}
+
+/* ---------------- FILTROS Y ACCIONES ---------------- */
+.acciones-superiores {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 25px;
+  gap: 15px;
+}
+
+.lado-izquierdo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-busqueda input[type="text"] {
+  padding: 10px 14px;
+  width: 250px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+.lado-derecho {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.btn-buscar,
+.btn-nuevo {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-buscar {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-buscar:hover {
+  background-color: #0056b3;
+}
+
+.btn-nuevo {
+  background-color: #f5a623;
+  color: white;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.btn-nuevo:hover {
+  background-color: #d98f00;
+}
+
+/* ---------------- TABLA DE TIPOS DE EMPLEADO ---------------- */
+
+
+.tipos-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+}
+
+.tipos-table thead {
+  background-color: #003366;
+}
+
+.tipos-table thead th {
+  color: white;
+  text-align: center;
+  padding: 12px;
+  font-weight: 600;
+}
+
+.tipos-table tbody td {
+  padding: 10px;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+  background-color: #fafafa;
+}
+
+.tipos-table tbody tr:hover {
+  background-color: #f0f8ff;
+  transition: 0.2s ease-in-out;
+}
+
+/* ---------------- ACCIONES ---------------- */
+.acciones-botones {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acciones-botones .btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: bold;
+  border-radius: 6px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  color: white;
+}
+
+.acciones-botones .btn-secondary {
+  background-color: #6c757d;
+}
+
+.acciones-botones .btn-warning {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.acciones-botones .btn-danger {
+  background-color: #dc3545;
+}
+
+/* ---------------- PAGINACIÓN ---------------- */
+.paginacion-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.pagination {
+  display: flex;
+  list-style: none;
+  gap: 8px;
+  padding: 0;
+}
+
+.pagination li a,
+.pagination li span {
+  padding: 8px 14px;
+  border: 1px solid #007bff;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #007bff;
+  font-weight: 500;
+}
+
+.pagination li.active span {
+  background-color: #007bff;
+  color: white;
+}
+
+.pagination li.disabled span {
+  color: #ccc;
+  border-color: #ccc;
+}
+
+/* ---------------- MODAL (MISMO ESTILO QUE ROLES) ---------------- */
+.modal-rol {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-contenido {
+  background-color: #fff;
+  padding: 30px 40px;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.15);
+  animation: fadeIn 0.3s ease;
+}
+
+.titulo-modal {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #003366;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.form-group input[type="text"] {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+.modal-botones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.modal-botones .btn {
+  padding: 10px 20px;
+  font-weight: bold;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.modal-botones .btn-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.modal-botones .btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+
+
+
+/* Tabla: ocupar todo el ancho del contenedor */
+.tipos-table{
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; /* reparte el ancho y evita saltos raros */
+}
+
+/* Celdas */
+.tipos-table th, .tipos-table td{
+  padding: 12px;
+  vertical-align: middle;
+}
+
+/* Distribución de columnas (ajusta a tu gusto) */
+.tipos-table th:nth-child(1), .tipos-table td:nth-child(1){ width: 22%; }
+.tipos-table th:nth-child(2), .tipos-table td:nth-child(2){ width: auto; }
+.tipos-table th:nth-child(3), .tipos-table td:nth-child(3){ width: 180px; } /* botones */
+
+/* Descripción larga con “…” en vez de romper layout */
+.tipos-table td:nth-child(2){
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Botones de acciones en línea, sin brincar */
+.tipos-wrapper .acciones-botones{
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+.tipos-wrapper .acciones-botones .btn{
+  min-width: 90px;
+}

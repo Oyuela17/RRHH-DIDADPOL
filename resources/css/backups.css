@@ -1,0 +1,250 @@
+/* ==================== LAYOUT PRINCIPAL ==================== */
+.backups-wrapper {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 20px;
+}
+
+/* Grid para Estado + Subir respaldo */
+.grid-status-upload {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) {
+  .grid-status-upload {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==================== TARJETAS ==================== */
+.card-lite {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.card-lite h4 {
+  margin: 0 0 10px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Lista clave-valor en tarjetas */
+.kv-row {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+}
+.kv-row dt {
+  min-width: 90px;
+  color: #64748b;
+  font-weight: 700;
+}
+.kv-row dd {
+  margin: 0;
+  color: #374151;
+}
+
+/* ==================== BOTONES ==================== */
+.bk-btn-ejecutar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #199a6b;
+  border: 1px solid #158a60;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bk-btn-ejecutar:hover {
+  background: #168b60;
+}
+
+.bk-btn-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0b5334;
+  border: 1px solid #09492d;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+.bk-btn-upload:hover {
+  filter: brightness(.95);
+}
+
+/* ==================== BADGES ==================== */
+.bk-badge {
+  background: #eef6ff;
+  color: #1373e6;
+  border: 1px solid #d7eaff;
+  padding: .25rem .55rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: .78rem;
+}
+.bk-badge-success {
+  background: #eaf6ee;
+  color: #148b41;
+  border-color: #cde8d4;
+}
+
+/* ==================== INPUT FILE ==================== */
+.input-file {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.input-file input[type="file"] {
+  width: 100%;
+  border: 0;
+}
+.input-hint {
+  font-size: .9rem;
+  color: #6b7280;
+  margin-top: 6px;
+}
+
+/* ==================== TABLA BACKUPS ==================== */
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+}
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table thead th {
+  background: #053b73;
+  color: #fff;
+  font-weight: 700;
+  padding: 10px 12px;
+  text-align: left;
+}
+.table tbody tr {
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+.table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+.table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* ==================== ACCIONES EN COLUMNA ==================== */
+.acciones-backup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+.btn-backup {
+  display: block;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+  min-width: 90px;
+  color: #fff;
+}
+/* ===== Botones base ===== */
+.bk-btn{
+  --rad: 10px;
+  --pad-y: 8px;
+  --pad-x: 12px;
+  --shadow: 0 8px 24px rgba(16,24,40,.08);
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-weight:600;
+  border-radius:var(--rad);
+  padding:var(--pad-y) var(--pad-x);
+  border:1px solid transparent;
+  text-decoration:none;
+  line-height:1.1;
+  cursor:pointer;
+  transition:transform .06s ease, box-shadow .2s ease, background-color .15s ease, border-color .15s ease;
+  box-shadow:var(--shadow);
+  user-select:none;
+}
+.bk-btn:active{ transform:translateY(1px); }
+
+/* Tamaños */
+.bk-btn-sm{ --pad-y: 6px; --pad-x: 10px; font-size:.92rem; }
+.bk-btn-block{ display:flex; justify-content:center; width:100%; }
+
+/* Estados de enfoque (teclado) */
+.bk-btn:focus-visible{
+  outline:0;
+  box-shadow:0 0 0 3px rgba(59,130,246,.35), var(--shadow);
+}
+
+/* ===== Variantes ===== */
+/* Info (Descargar) */
+.bk-btn-info{
+  background:#0b3a63; color:#fff;
+}
+.bk-btn-info:hover{ background:#072a49; }
+
+/* Success (Restaurar) */
+.bk-btn-success{
+  background:#166b40; color:#fff;
+}
+.bk-btn-success:hover{ background:#115b34; }
+
+/* Danger (Eliminar) */
+.bk-btn-danger{
+  background:#dc3545; color:#fff;
+}
+.bk-btn-danger:hover{ background:#c12f3d; }
+
+/* Primary (Subir y Restaurar) */
+.bk-btn-primary{
+  background:#14532d; color:#fff;
+}
+.bk-btn-primary:hover{ background:#0f3f22; }
+
+/* Línea suave para botones en la columna Acciones */
+.bk-acciones-col{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+/* Opcional: íconos fontawesome dentro del botón */
+.bk-btn i{ font-size:1rem; }
+
+/* Igualar tamaño de botones en Acciones */
+.bk-acciones-col .bk-btn {
+  min-width: 120px;          /* mismo ancho mínimo */
+  justify-content: center;   /* centrar texto e icono */
+}
+
+/* Si quieres exactamente el mismo ancho para todos */
+.bk-acciones-col .bk-btn {
+  width: 120px;               /* ancho fijo */
+  justify-content: center;
+}

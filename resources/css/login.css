@@ -1,0 +1,374 @@
+/* Reset básico */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  height: 100%;
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #005796, #8d99ae);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Contenedor principal */
+.login-wrapper {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Tarjeta principal */
+.card-login {
+  display: flex;
+  width: 800px;
+  height: 550px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  animation: cardEntrance 1.2s ease forwards;
+  opacity: 0;
+}
+
+.card-login:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  transition: all 0.5s ease;
+}
+
+/* Lado izquierdo (Formulario) */
+.card-left {
+  flex: 1;
+  background: #005796;
+  color: #ffffff;
+  padding: 40px 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: fadeInLeft 1.5s ease;
+}
+
+.card-left h2 {
+  font-size: 30px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: 15px;
+  margin-bottom: 30px;
+  text-align: center;
+  color: #d1d1d1;
+}
+
+.subtitle a {
+  color: #f4a300;
+  text-decoration: none;
+}
+
+.subtitle a:hover {
+  text-decoration: underline;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+input[type="email"],
+input[type="password"] {
+  width: 100%;
+  padding: 15px;
+  background: #ffffff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  color: #333;
+  font-size: 14px;
+  transition: 0.3s ease;
+}
+
+input[type="email"]:focus,
+input[type="password"]:focus {
+  outline: none;
+  border: 1px solid #f4a300;
+  box-shadow: 0 0 10px rgba(244, 163, 0, 0.5);
+}
+
+input::placeholder {
+  color: #aaa;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+
+.remember-me input {
+  margin-right: 10px;
+}
+
+/* Botón login */
+.btn-login {
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, #f4a300, #f1bb4f);
+  border: none;
+  color: white;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s ease;
+}
+
+.btn-login::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -25%;
+  width: 150%;
+  height: 200%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(25deg);
+  transition: all 0.7s ease;
+  pointer-events: none;
+}
+
+.btn-login:hover::after {
+  left: 150%;
+}
+
+.btn-login:hover {
+  background: linear-gradient(135deg, #f1bb4f, #f4a300);
+  transform: scale(1.05);
+}
+
+/* Enlace "Olvidaste tu contraseña" */
+.forgot-password {
+  display: block;
+  margin-top: 10px;
+  font-size: 14px;
+  color: #f4a300;
+  text-align: center;
+  text-decoration: none;
+  transition: 0.3s;
+}
+
+.forgot-password:hover {
+  text-decoration: underline;
+  color: #f1bb4f;
+}
+
+/* Lado derecho (Imagen fondo) */
+.card-right {
+  flex: 1;
+  background: url('https://images.unsplash.com/photo-1623872447854-97e7fa05afd0?fit=crop&w=870&q=80') no-repeat center center;
+  background-size: cover;
+  animation: fadeInRight 1.5s ease;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .card-login {
+    flex-direction: column;
+    height: auto;
+    width: 90%;
+  }
+
+  .card-right {
+    height: 250px;
+  }
+}
+
+/* Animaciones */
+@keyframes cardEntrance {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-50px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  0% {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.login-right {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f2f3f5;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+  padding: 40px;
+  height: 100%;
+}
+
+.logo-panel {
+  max-width: 280px;
+  height: auto;
+  display: block;
+}
+
+.login-container {
+  display: flex;
+  height: 100vh; /* Asegura que todo el login use la pantalla completa */
+
+}
+
+.alert-modal {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px); /* opcional: efecto vidrio */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.alert-contenido {
+  background-color: #ffffff;
+  padding: 20px 30px;
+  border-radius: 10px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  position: relative;
+  text-align: center;
+  border-left: 5px solid #3498db;
+}
+
+.icono-alerta {
+  font-size: 30px;
+  color: #3498db;
+  margin-bottom: 10px;
+}
+
+.texto-alerta {
+  font-size: 16px;
+  color: #333;
+}
+
+.cerrar-alerta {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+}
+
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper input[type="password"],
+.password-wrapper input[type="text"] {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.toggle-password {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-password svg {
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.modal-error {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background-color: rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.modal-contenido {
+  background: white;
+  padding: 30px 40px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: bold;
+  animation: scaleIn 0.3s ease-in-out;
+  position: relative;
+}
+
+.modal-contenido .cerrar-modal {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.modal-contenido .icono-error {
+  font-size: 32px;
+  color: red;
+  margin-bottom: 8px;
+}
+
+.modal-contenido .mensaje-error {
+  color: red;
+  font-size: 15px;
+  margin-top: 8px;
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+
+

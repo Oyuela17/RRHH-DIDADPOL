@@ -1,0 +1,142 @@
+/* Contenedor general */
+.contrato-wrapper {
+    margin: 0 30px;
+    width: calc(100% - 60px);
+    box-sizing: border-box;
+}
+
+/* Título */
+.titulo-contrato {
+    font-size: 28px;
+    font-weight: 700;
+    color: #003366;
+    margin-bottom: 20px;
+    text-align: left;
+    position: relative;
+}
+
+.titulo-contrato::after {
+    content: "";
+    display: block;
+    width: 60px;
+    height: 4px;
+    background-color: #f9b233;
+    margin-top: 6px;
+    border-radius: 4px;
+}
+
+/* Contenedor tabla */
+.contrato-container {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.08);
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto; /* ❗ Para adaptarse bien si hay muchas columnas */
+}
+
+/* Tabla adaptable */
+.contrato-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    table-layout: fixed;
+}
+
+/* Encabezado */
+.contrato-table th {
+    background-color: #003366;
+    color: white;
+    font-weight: bold;
+    padding: 14px 12px;
+    text-align: center;
+    border-bottom: 2px solid #ccc;
+    word-wrap: break-word;
+}
+
+/* Celdas */
+.contrato-table td {
+    padding: 14px 12px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    background-color: #fefefe;
+    word-break: break-word;
+}
+
+/* Fila alterna */
+.contrato-table tr:nth-child(even) td {
+    background-color: #f5f9ff;
+}
+
+/* Hover */
+.contrato-table tr:hover td {
+    background-color: #e0efff;
+    transition: 0.3s;
+}
+
+/* Acciones (editar/eliminar) en fila */
+.contrato-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* Botones */
+.btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s ease-in-out;
+    text-decoration: none;
+    text-align: center;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #f4a300, #f1bb4f);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #f1bb4f, #f4a300);
+    transform: translateY(-1px);
+}
+
+.btn-outline-primary {
+    background: transparent;
+    color: #004a86;
+    border: 2px solid #004a86;
+}
+
+.btn-outline-primary:hover {
+    background: #004a86;
+    color: white;
+}
+
+.btn-outline-danger {
+    background: transparent;
+    color: #c0392b;
+    border: 2px solid #c0392b;
+}
+
+.btn-outline-danger:hover {
+    background: #c0392b;
+    color: white;
+}
+
+/* Vista sin datos */
+.contrato-table .no-data {
+    padding: 20px;
+    color: #999;
+    text-align: center;
+    font-style: italic;
+}
+
+/* Asegurar que el contenido principal no tenga scroll horizontal */
+.main-content {
+    width: 100%;
+    overflow-x: hidden;
+}

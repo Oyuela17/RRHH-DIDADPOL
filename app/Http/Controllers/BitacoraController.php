@@ -20,7 +20,7 @@ class BitacoraController extends Controller
             'pageSize' => $request->input('pageSize'),
         ], fn($v) => !is_null($v) && $v !== '');
 
-        $response = Http::get('https://rrhh-didadpol-1.onrender.com', $params);
+        $response = Http::get('https://rrhh-didadpol-1.onrender.com/api/bitacora', $params);
 
         if ($response->successful()) {
             $bitacora = $response->json(); // Array con: fecha, usuario_nombre, accion, tabla, descripcion, ip_origen

@@ -9,9 +9,37 @@
     Swal.fire({
       icon: 'success',
       title: 'Horarios',
-      text: '{{ session("success") }}',
+      text: @json(session('success')),
       confirmButtonText: 'OK',
       confirmButtonColor: '#007bff'
+    });
+  });
+</script>
+@endif
+
+@if (session('error'))
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: @json(session('error')),
+      confirmButtonText: 'OK',
+      confirmButtonColor: '#d33'
+    });
+  });
+</script>
+@endif
+
+@if (session('advertencia') || $errors->any())
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Advertencia',
+      text: @json(session('advertencia') ?? $errors->first()),
+      confirmButtonText: 'Entendido',
+      confirmButtonColor: '#f39c12'
     });
   });
 </script>
@@ -32,7 +60,6 @@
       <a href="#" class="btn btn-nuevo" id="btnMostrarModal">
         <i class="fas fa-plus"></i> Nuevo Horario
       </a>
-      
     </div>
   </div>
 
@@ -53,7 +80,17 @@
             <td>{{ $h['nom_horario'] }}</td>
             <td>{{ $h['hora_inicio'] }}</td>
             <td>{{ $h['hora_final'] }}</td>
-            <td>{{ is_array($h['dias_semana']) ? implode(', ', $h['dias_semana']) : $h['dias_semana'] }}</td>
+            <td>
+              @php
+                $dias = is_array($h['dias_semana']) ? $h['dias_semana'] : explode(',', (string)$h['dias_semana']);
+                $labels = ['LU'=>'LUNES','MA'=>'MARTES','MI'=>'MIÉRCOLES','JU'=>'JUEVES','VI'=>'VIERNES','SA'=>'SÁBADO','DO'=>'DOMINGO'];
+                $mostrar = collect($dias)->map(function($d) use($labels){
+                  $u = strtoupper(trim($d));
+                  return $labels[$u] ?? $u;
+                })->implode(', ');
+              @endphp
+              {{ $mostrar }}
+            </td>
             <td class="acciones-botones">
               <a href="#" class="btn btn-warning btn-editar"
                  data-id="{{ $h['cod_horario'] }}"
@@ -91,7 +128,8 @@
 
       <div class="form-group">
         <label>Nombre:</label>
-        <input type="text" name="nom_horario" id="nombreHorario" required>
+        <input type="text" name="nom_horario" id="nombreHorario" required maxlength="50"
+               pattern="^[A-ZÁÉÍÓÚÑ ]+$" title="Solo letras y espacios.">
       </div>
       <div class="form-group">
         <label>Hora Inicio:</label>
@@ -104,10 +142,15 @@
 
       <div class="form-group">
         <label>Seleccione los días laborales:</label>
-        <div class="dias-semana-container">
-          @foreach (['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'] as $dia)
-            <div class="dia-semana" data-dia="{{ $dia }}">{{ strtoupper($dia) }}</div>
-          @endforeach
+        <div class="dias-semana-container" id="diasUI">
+          {{-- Usamos códigos estándar en data-code --}}
+          <div class="dia-semana" data-code="LU">LUNES</div>
+          <div class="dia-semana" data-code="MA">MARTES</div>
+          <div class="dia-semana" data-code="MI">MIÉRCOLES</div>
+          <div class="dia-semana" data-code="JU">JUEVES</div>
+          <div class="dia-semana" data-code="VI">VIERNES</div>
+          <div class="dia-semana" data-code="SA">SÁBADO</div>
+          <div class="dia-semana" data-code="DO">DOMINGO</div>
         </div>
         <input type="hidden" name="dias_semana" id="diasSeleccionados">
       </div>
@@ -134,66 +177,104 @@ document.addEventListener('DOMContentLoaded', () => {
   const inicioInput = document.getElementById('horaInicio');
   const finalInput = document.getElementById('horaFinal');
   const diasInput = document.getElementById('diasSeleccionados');
+  const diasUI = document.getElementById('diasUI');
 
+  // Avisos (anti-spam)
+  let ultimoAviso = 0;
+  const aviso = (msg) => {
+    const ahora = Date.now();
+    if (ahora - ultimoAviso > 1200) {
+      ultimoAviso = ahora;
+      Swal.fire({ icon:'warning', title:'Entrada inválida', text: msg, timer:1400, showConfirmButton:false });
+    }
+  };
+
+  // Validación de nombre (solo letras/espacios, a mayúsculas)
+  nombreInput.addEventListener('input', () => {
+    const upper = nombreInput.value.toUpperCase();
+    const inval = /[^A-ZÁÉÍÓÚÑ ]/.test(upper);
+    nombreInput.value = upper.replace(/[^A-ZÁÉÍÓÚÑ ]+/g,'').replace(/\s{2,}/g,' ').replace(/^\s+/, '');
+    if (inval) aviso('No se aceptan números ni símbolos en el nombre.');
+  });
+
+  // Helpers para días
+  const NOMBRE_A_COD = {
+    'LUNES': 'LU','MARTES': 'MA','MIERCOLES':'MI','MIÉRCOLES':'MI',
+    'JUEVES':'JU','VIERNES':'VI','SABADO':'SA','SÁBADO':'SA','DOMINGO':'DO'
+  };
+  const COD_VALIDOS = ['LU','MA','MI','JU','VI','SA','DO'];
+
+  const setDiasHidden = () => {
+    const seleccionados = Array.from(diasUI.querySelectorAll('.dia-semana.activo'))
+      .map(el => el.dataset.code);
+    diasInput.value = seleccionados.join(',');
+  };
+
+  diasUI.addEventListener('click', (e) => {
+    const item = e.target.closest('.dia-semana');
+    if (!item) return;
+    item.classList.toggle('activo');
+    setDiasHidden();
+  });
+
+  // Abrir modal nuevo
   document.getElementById('btnMostrarModal').addEventListener('click', () => {
-    form.action = "{{ route('horarios.store') }}";
+    form.action = @json(route('horarios.store'));
     metodoForm.value = 'POST';
     tituloModal.textContent = 'Registrar Horario';
     form.reset();
     idInput.value = '';
     diasInput.value = '';
-    document.querySelectorAll('.dia-semana').forEach(d => d.classList.remove('activo'));
+    diasUI.querySelectorAll('.dia-semana').forEach(d => d.classList.remove('activo'));
     modal.style.display = 'flex';
   });
 
+  // Cancelar
   document.getElementById('cancelarHorario').addEventListener('click', () => {
     modal.style.display = 'none';
   });
 
-  document.querySelectorAll('.btn-editar').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      const nombre = btn.dataset.nombre;
-      const inicio = btn.dataset.inicio;
-      const fin = btn.dataset.final;
-      const dias = btn.dataset.dias.split(',');
+  // Editar (delegación)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-editar');
+    if (!btn) return;
+    e.preventDefault();
 
-      form.action = `/horarios/${id}`;
-      metodoForm.value = 'PUT';
-      tituloModal.textContent = 'Editar Horario';
-      idInput.value = id;
-      nombreInput.value = nombre;
-      inicioInput.value = inicio;
-      finalInput.value = fin;
+    const id = btn.dataset.id;
+    const nombre = btn.dataset.nombre || '';
+    const inicio = btn.dataset.inicio || '';
+    const fin = btn.dataset.final || '';
+    const diasAttr = (btn.dataset.dias || '').split(',').map(s => s.trim());
 
-      document.querySelectorAll('.dia-semana').forEach(dia => {
-        const d = dia.dataset.dia;
-        if (dias.includes(d)) {
-          dia.classList.add('activo');
-        } else {
-          dia.classList.remove('activo');
-        }
-      });
+    // Normaliza días que vengan como nombres o códigos
+    const diasCod = diasAttr.map(d => {
+      const u = d.toUpperCase();
+      return COD_VALIDOS.includes(u) ? u : (NOMBRE_A_COD[u] || null);
+    }).filter(Boolean);
 
-      diasInput.value = dias.join(', ');
-      modal.style.display = 'flex';
+    form.action = @json(url('horarios')) + '/' + id;
+    metodoForm.value = 'PUT';
+    tituloModal.textContent = 'Editar Horario';
+    idInput.value = id;
+
+    nombreInput.value = nombre.toUpperCase();
+    inicioInput.value = inicio;
+    finalInput.value = fin;
+
+    // Pintar selección de días
+    diasUI.querySelectorAll('.dia-semana').forEach(el => {
+      el.classList.toggle('activo', diasCod.includes(el.dataset.code));
     });
+    diasInput.value = diasCod.join(',');
+
+    modal.style.display = 'flex';
   });
 
-  document.querySelectorAll('.dia-semana').forEach(boton => {
-    boton.addEventListener('click', () => {
-      boton.classList.toggle('activo');
-      const seleccionados = Array.from(document.querySelectorAll('.dia-semana.activo'))
-        .map(d => d.dataset.dia)
-        .join(', ');
-      diasInput.value = seleccionados;
-    });
-  });
-
-  document.querySelectorAll('.form-eliminar').forEach(form => {
-    form.addEventListener('submit', function (e) {
+  // Confirmación eliminar
+  document.querySelectorAll('.form-eliminar').forEach(f => {
+    f.addEventListener('submit', function (e) {
       e.preventDefault();
-      const nombre = this.dataset.nombre;
+      const nombre = this.dataset.nombre || '';
       Swal.fire({
         title: '¿Eliminar?',
         text: `¿Deseas eliminar el horario "${nombre}"?`,
@@ -203,10 +284,28 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelButtonColor: '#3085d6',
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar'
-      }).then(result => {
-        if (result.isConfirmed) this.submit();
+      }).then(r => {
+        if (r.isConfirmed) this.submit();
       });
     });
+  });
+
+  // Validación extra antes de enviar
+  form.addEventListener('submit', (e) => {
+    // nombre ya validado en tiempo real
+    if (!nombreInput.value || /[^A-ZÁÉÍÓÚÑ ]/.test(nombreInput.value)) {
+      e.preventDefault();
+      return Swal.fire('Validación', 'El nombre solo permite letras y espacios.', 'warning');
+    }
+    if (!inicioInput.value || !finalInput.value) {
+      e.preventDefault();
+      return Swal.fire('Validación', 'Debes ingresar hora de inicio y hora final.', 'warning');
+    }
+   
+    if (!diasInput.value) {
+      e.preventDefault();
+      return Swal.fire('Validación', 'Selecciona al menos un día laboral.', 'warning');
+    }
   });
 });
 </script>

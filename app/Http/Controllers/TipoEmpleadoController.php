@@ -14,12 +14,12 @@ class TipoEmpleadoController extends Controller
     public function index(Request $request)
     {
         $busqueda = strtoupper((string) $request->input('busqueda', ''));
-        $ordenar  = $request->input('ordenar', 'nombre'); // 'nombre'|'fecha'
+        $ordenar  = $request->input('ordenar', 'nombre');
         $cantidad = (int) $request->input('cantidad', 5);
         $cantidad = $cantidad > 0 ? $cantidad : 5;
 
         try {
-            $response = Http::timeout(10)->get($this->apiUrl.'?detalles=true');
+            $response = Http::timeout(10)->get($this->apiUrl . '?detalles=true');
             if (!$response->successful()) {
                 return back()->with('error', 'No se pudo obtener la lista de tipos de empleado.');
             }
@@ -57,12 +57,22 @@ class TipoEmpleadoController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'nom_tipo'    => ['required','string','max:30'],
-            'descripcion' => ['required','string','max:100'],
+        // 🔹 Validaciones de contenido
+        $request->validate([
+            'nom_tipo' => ['required', 'string', 'max:30', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/'],
+            'descripcion' => ['required', 'string', 'max:100', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/'],
         ]);
 
-        $data['usr_registro'] = auth()->user()->name ?? 'admin';
+        // 🔹 Si contiene números o símbolos, mostrar advertencia tipo SweetAlert
+        if (preg_match('/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/', $request->nom_tipo) || preg_match('/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/', $request->descripcion)) {
+            return back()->with('advertencia', 'No se aceptan números ni símbolos.');
+        }
+
+        $data = [
+            'nom_tipo' => $request->nom_tipo,
+            'descripcion' => $request->descripcion,
+            'usr_registro' => auth()->user()->name ?? 'admin',
+        ];
 
         try {
             $response = Http::timeout(10)->asJson()->post($this->apiUrl, $data);
@@ -73,7 +83,7 @@ class TipoEmpleadoController extends Controller
             }
 
             $msg = $response->json('error') ?? $response->body();
-            return back()->with('error', 'Error al registrar: '.$msg);
+            return back()->with('error', 'Error al registrar: ' . $msg);
         } catch (\Throwable $e) {
             return back()->with('error', 'Servicio no disponible al registrar.');
         }
@@ -81,13 +91,21 @@ class TipoEmpleadoController extends Controller
 
     public function update(Request $request, $id)
     {
-        $data = $request->validate([
-            'nom_tipo'    => ['required','string','max:30'],
-            'descripcion' => ['required','string','max:100'],
+        // 🔹 Validaciones iguales que en store
+        $request->validate([
+            'nom_tipo' => ['required', 'string', 'max:30', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/'],
+            'descripcion' => ['required', 'string', 'max:100', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/'],
         ]);
 
-        // Si tu API acepta usr_modificacion, inclúyelo; si no, omite esta línea.
-        $data['usr_modificacion'] = auth()->user()->name ?? 'admin';
+        if (preg_match('/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/', $request->nom_tipo) || preg_match('/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/', $request->descripcion)) {
+            return back()->with('advertencia', 'No se aceptan números ni símbolos.');
+        }
+
+        $data = [
+            'nom_tipo' => $request->nom_tipo,
+            'descripcion' => $request->descripcion,
+            'usr_modificacion' => auth()->user()->name ?? 'admin',
+        ];
 
         try {
             $response = Http::timeout(10)->asJson()->put("{$this->apiUrl}/{$id}", $data);
@@ -98,7 +116,7 @@ class TipoEmpleadoController extends Controller
             }
 
             $msg = $response->json('error') ?? $response->body();
-            return back()->with('error', 'Error al actualizar: '.$msg);
+            return back()->with('error', 'Error al actualizar: ' . $msg);
         } catch (\Throwable $e) {
             return back()->with('error', 'Servicio no disponible al actualizar.');
         }
@@ -115,7 +133,7 @@ class TipoEmpleadoController extends Controller
             }
 
             $msg = $response->json('error') ?? $response->body();
-            return back()->with('error', 'Error al eliminar: '.$msg);
+            return back()->with('error', 'Error al eliminar: ' . $msg);
         } catch (\Throwable $e) {
             return back()->with('error', 'Servicio no disponible al eliminar.');
         }

@@ -46,27 +46,48 @@
 
         <div class="form-group">
           <label>Nombre de Oficina:</label>
-          <input type="text" id="nombreOficina" required>
+          <input
+            type="text"
+            id="nombreOficina"
+            required
+            maxlength="80"
+            pattern="^[A-ZÁÉÍÓÚÑ ]+$"
+            title="Solo letras y espacios (sin números ni símbolos)."
+          >
         </div>
 
         <div class="form-group">
           <label>Dirección:</label>
-          <input type="text" id="direccion" required>
+          <input type="text" id="direccion" required maxlength="150">
         </div>
 
         <div class="form-group">
           <label>Teléfono:</label>
-          <input type="text" id="telefono" required>
+          <input
+            type="text"
+            id="telefono"
+            required
+            maxlength="20"
+            pattern="^[0-9\-]+$"
+            title="Solo números y guiones."
+          >
         </div>
 
         <div class="form-group">
           <label>Encargado:</label>
-          <input type="text" id="aCargo" required>
+          <input
+            type="text"
+            id="aCargo"
+            required
+            maxlength="80"
+            pattern="^[A-ZÁÉÍÓÚÑ ]+$"
+            title="Solo letras y espacios (sin números ni símbolos)."
+          >
         </div>
 
         <div class="form-group">
           <label>Dirección Corta:</label>
-          <input type="text" id="direccionCorta">
+          <input type="text" id="direccionCorta" maxlength="80">
         </div>
 
         <div class="form-group">
@@ -94,7 +115,6 @@
   </div>
 </div>
 
-
 <link rel="stylesheet" href="{{ asset('css/oficinas.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -107,8 +127,63 @@ const btnNuevo = document.getElementById('btnMostrarModal');
 const cancelar = document.getElementById('cancelarOficina');
 const form = document.getElementById('formOficina');
 const idInput = document.getElementById('oficinaId');
+
+const nombreOficina = document.getElementById('nombreOficina');
+const telefono = document.getElementById('telefono');
+const aCargo = document.getElementById('aCargo');
+
 let modo = 'crear';
 
+// ================== VALIDACIONES EN TIEMPO REAL ==================
+let ultimoAviso = 0;
+function avisar(texto) {
+  const ahora = Date.now();
+  if (ahora - ultimoAviso > 1200) {
+    ultimoAviso = ahora;
+    Swal.fire({
+      icon: 'warning',
+      title: 'Entrada inválida',
+      text: texto,
+      timer: 1400,
+      showConfirmButton: false
+    });
+  }
+}
+
+// Solo letras y espacios (a MAYÚSCULAS)
+function bindSoloLetras(input) {
+  input.addEventListener('input', () => {
+    const original = input.value;
+    const upper = original.toUpperCase();
+    const hayInvalidos = /[^A-ZÁÉÍÓÚÑ ]/.test(upper);
+    input.value = upper
+      .replace(/[^A-ZÁÉÍÓÚÑ ]+/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^\s+/, '');
+    if (hayInvalidos) avisar('No se aceptan números ni símbolos.');
+  });
+}
+
+// Solo números y guiones
+function bindTelefono(input) {
+  input.addEventListener('input', () => {
+    const original = input.value;
+    const hayInvalidos = /[^0-9\-]/.test(original);
+    let limpio = original
+      .replace(/[^0-9\-]+/g, '')   // elimina no permitidos
+      .replace(/\-+/g, '-')        // colapsa guiones
+      .replace(/^-/, '')           // evita empezar con guion
+      .replace(/-$/, '');          // evita terminar con guion
+    input.value = limpio;
+    if (hayInvalidos) avisar('Solo se permite números y guiones.');
+  });
+}
+
+bindSoloLetras(nombreOficina);
+bindSoloLetras(aCargo);
+bindTelefono(telefono);
+
+// ================== CRUD ==================
 btnNuevo.addEventListener('click', () => {
   modo = 'crear';
   form.reset();
@@ -122,12 +197,23 @@ cancelar.addEventListener('click', () => modal.style.display = 'none');
 form.addEventListener('submit', async e => {
   e.preventDefault();
 
+  // Validación final antes de enviar
+  if (!nombreOficina.value || /[^A-ZÁÉÍÓÚÑ ]/.test(nombreOficina.value)) {
+    return Swal.fire('Validación','Solo se permite letras y espacios.','warning');
+  }
+  if (!aCargo.value || /[^A-ZÁÉÍÓÚÑ ]/.test(aCargo.value)) {
+    return Swal.fire('Validación','Solo se permite letras y espacios.','warning');
+  }
+  if (!telefono.value || /[^0-9\-]/.test(telefono.value)) {
+    return Swal.fire('Validación','Solo se permite números y guiones.','warning');
+  }
+
   const data = {
     cod_municipio: document.getElementById('codMunicipio').value,
     direccion: document.getElementById('direccion').value.trim(),
-    nom_oficina: document.getElementById('nombreOficina').value.trim(),
-    a_cargo: document.getElementById('aCargo').value.trim(),
-    num_telefono: document.getElementById('telefono').value.trim(),
+    nom_oficina: nombreOficina.value.trim(),
+    a_cargo: aCargo.value.trim(),
+    num_telefono: telefono.value.trim(),
     usr_registro: 'admin',
     direccion_corta: document.getElementById('direccionCorta').value.trim(),
     asignable_empleados: document.getElementById('asignableEmpleados').value === 'true'
@@ -144,7 +230,7 @@ form.addEventListener('submit', async e => {
 
     const resJson = await res.json();
     if (res.ok) {
-      Swal.fire('Éxito', resJson.mensaje, 'success');
+      Swal.fire('Éxito', resJson.mensaje || 'Operación realizada correctamente', 'success');
       modal.style.display = 'none';
       cargarOficinas();
     } else {
@@ -165,14 +251,19 @@ function cargarOficinas() {
           <tr>
             <td>${o.nom_oficina}</td>
             <td>${o.direccion}</td>
-            <td class="telefono">${o.num_telefono}</td>
-            <td>${o.a_cargo}</td>
+            <td class="telefono">${o.num_telefono ?? ''}</td>
+            <td>${o.a_cargo ?? ''}</td>
             <td class="acciones-botones">
               <button class="btn btn-warning" onclick='editar(${JSON.stringify(o)})'>Editar</button>
-              <button class="btn btn-danger" onclick="eliminar(${o.cod_oficina}, '${o.nom_oficina}')">Eliminar</button>
+              <button class="btn btn-danger" onclick="eliminar(${o.cod_oficina}, '${(o.nom_oficina || '').replace(/'/g, "\\'")}')">Eliminar</button>
             </td>
           </tr>`;
       });
+    })
+    .catch(() => {
+      cuerpoTabla.innerHTML = `
+        <tr><td colspan="5" class="text-center">No se pudo cargar la lista de oficinas.</td></tr>
+      `;
     });
 }
 
@@ -184,12 +275,13 @@ function editar(oficina) {
     document.getElementById('codMunicipio').value = oficina.cod_municipio;
   });
 
-  document.getElementById('nombreOficina').value = oficina.nom_oficina;
-  document.getElementById('direccion').value = oficina.direccion;
-  document.getElementById('telefono').value = oficina.num_telefono;
-  document.getElementById('aCargo').value = oficina.a_cargo;
-  document.getElementById('direccionCorta').value = oficina.direccion_corta;
+  nombreOficina.value = (oficina.nom_oficina || '').toString().toUpperCase();
+  document.getElementById('direccion').value = oficina.direccion || '';
+  telefono.value = oficina.num_telefono || '';
+  aCargo.value = (oficina.a_cargo || '').toString().toUpperCase();
+  document.getElementById('direccionCorta').value = oficina.direccion_corta || '';
   document.getElementById('asignableEmpleados').value = oficina.asignable_empleados ? 'true' : 'false';
+
   document.getElementById('tituloModal').textContent = 'Editar Oficina';
   modal.style.display = 'flex';
 }
@@ -210,7 +302,7 @@ async function eliminar(id, nombre) {
         const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE' });
         const json = await res.json();
         if (res.ok) {
-          Swal.fire('Eliminado', json.mensaje, 'success');
+          Swal.fire('Eliminado', json.mensaje || 'Oficina eliminada correctamente', 'success');
           cargarOficinas();
         } else {
           throw new Error(json.error || 'Error');

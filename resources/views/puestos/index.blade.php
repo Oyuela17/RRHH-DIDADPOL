@@ -82,7 +82,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-const api = 'http://localhost:3000/api/puestos';
+const api = 'https://rrhh-didadpol-1.onrender.com/api/puestos';
 const cuerpoTabla = document.getElementById('cuerpoTabla');
 const modal = document.getElementById('modalPuesto');
 const btnNuevo = document.getElementById('btnMostrarModal');

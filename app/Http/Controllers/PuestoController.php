@@ -16,6 +16,18 @@ class PuestoController extends Controller
 
     public function store(Request $request)
     {
+        // 🔹 Validaciones
+        $request->validate([
+            'nom_puesto' => ['required', 'string', 'max:50', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/'],
+            'funciones_puesto' => ['required', 'string', 'max:200'],
+            'sueldo_base' => ['required', 'numeric', 'min:0']
+        ]);
+
+        // 🔹 Verificar manualmente que no tenga números ni símbolos (por seguridad extra)
+        if (preg_match('/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/', $request->nom_puesto)) {
+            return back()->with('advertencia', 'No se aceptan números ni símbolos en el nombre del puesto.');
+        }
+
         try {
             $response = Http::post($this->apiUrl, [
                 'nom_puesto' => $request->input('nom_puesto'),
@@ -27,17 +39,29 @@ class PuestoController extends Controller
             ]);
 
             if ($response->successful()) {
-                return response()->json(['mensaje' => 'Puesto registrado correctamente']);
+                return redirect()->route('puestos.index')
+                    ->with('success', 'Puesto registrado correctamente.');
             } else {
-                return response()->json(['error' => 'Error al registrar el puesto'], $response->status());
+                return back()->with('error', 'Error al registrar el puesto.');
             }
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error de conexión: ' . $e->getMessage()], 500);
+            return back()->with('error', 'Error de conexión: ' . $e->getMessage());
         }
     }
 
     public function update(Request $request, $id)
     {
+        // 🔹 Validaciones
+        $request->validate([
+            'nom_puesto' => ['required', 'string', 'max:50', 'regex:/^[A-Za-zÁÉÍÓÚáéíóúÑñ\s]+$/'],
+            'funciones_puesto' => ['required', 'string', 'max:200'],
+            'sueldo_base' => ['required', 'numeric', 'min:0']
+        ]);
+
+        if (preg_match('/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/', $request->nom_puesto)) {
+            return back()->with('advertencia', 'No se aceptan números ni símbolos en el nombre del puesto.');
+        }
+
         try {
             $response = Http::put("{$this->apiUrl}/{$id}", [
                 'nom_puesto' => $request->input('nom_puesto'),
@@ -49,12 +73,13 @@ class PuestoController extends Controller
             ]);
 
             if ($response->successful()) {
-                return response()->json(['mensaje' => 'Puesto actualizado correctamente']);
+                return redirect()->route('puestos.index')
+                    ->with('success', 'Puesto actualizado correctamente.');
             } else {
-                return response()->json(['error' => 'Error al actualizar el puesto'], $response->status());
+                return back()->with('error', 'Error al actualizar el puesto.');
             }
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error de conexión: ' . $e->getMessage()], 500);
+            return back()->with('error', 'Error de conexión: ' . $e->getMessage());
         }
     }
 
@@ -64,12 +89,13 @@ class PuestoController extends Controller
             $response = Http::delete("{$this->apiUrl}/{$id}");
 
             if ($response->successful()) {
-                return response()->json(['mensaje' => 'Puesto eliminado correctamente']);
+                return redirect()->route('puestos.index')
+                    ->with('success', 'Puesto eliminado correctamente.');
             } else {
-                return response()->json(['error' => 'Error al eliminar el puesto'], $response->status());
+                return back()->with('error', 'Error al eliminar el puesto.');
             }
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error de conexión: ' . $e->getMessage()], 500);
+            return back()->with('error', 'Error de conexión: ' . $e->getMessage());
         }
     }
 }

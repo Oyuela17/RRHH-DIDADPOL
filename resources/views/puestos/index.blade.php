@@ -40,18 +40,36 @@
     <form id="formPuesto">
       <input type="hidden" id="puestoId">
       <input type="hidden" id="fuente" value="1">
+
       <div class="form-group">
         <label>Nombre del Puesto:</label>
-        <input type="text" id="nombre" required>
+        <input
+          type="text"
+          id="nombre"
+          required
+          maxlength="50"
+          pattern="^[A-ZÁÉÍÓÚÑ ]+$"
+          title="Solo letras y espacios (sin números ni símbolos)."
+        >
       </div>
+
       <div class="form-group">
         <label>Funciones:</label>
-        <input type="text" id="funciones" required>
+        <input
+          type="text"
+          id="funciones"
+          required
+          maxlength="200"
+          pattern="^[A-ZÁÉÍÓÚÑ ]+$"
+          title="Solo letras y espacios (sin números ni símbolos)."
+        >
       </div>
+
       <div class="form-group">
         <label>Sueldo Base:</label>
         <input type="number" id="sueldo" required step="0.01" min="0">
       </div>
+
       <div class="modal-botones">
         <button type="submit" class="btn btn-success">Guardar</button>
         <button type="button" class="btn btn-danger" id="cancelarPuesto">Cancelar</button>
@@ -64,15 +82,65 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-const api = 'https://rrhh-didadpol-1.onrender.com/api/puestos';
+const api = 'http://localhost:3000/api/puestos';
 const cuerpoTabla = document.getElementById('cuerpoTabla');
 const modal = document.getElementById('modalPuesto');
 const btnNuevo = document.getElementById('btnMostrarModal');
 const cancelar = document.getElementById('cancelarPuesto');
 const form = document.getElementById('formPuesto');
 const idInput = document.getElementById('puestoId');
+const inputNombre = document.getElementById('nombre');
+const inputFunciones = document.getElementById('funciones');
+const inputSueldo = document.getElementById('sueldo');
 let modo = 'crear';
 
+// ====== FUNCIÓN GENERAL DE VALIDACIÓN PARA CAMPOS DE TEXTO ======
+let ultimoAviso = 0; // control de frecuencia de alertas
+
+function validarSoloLetras(input) {
+  input.addEventListener('input', () => {
+    const original = input.value;
+    const upper = original.toUpperCase();
+
+    // Detectar si hay caracteres inválidos
+    const hayInvalidos = /[^A-ZÁÉÍÓÚÑ ]/.test(upper);
+
+    // Limpiar el texto visualmente
+    const limpio = upper
+      .replace(/[^A-ZÁÉÍÓÚÑ ]+/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/^\s+/, '');
+
+    input.value = limpio;
+
+    // Mostrar alerta solo si se intentó poner algo inválido
+    if (hayInvalidos) {
+      const ahora = Date.now();
+      if (ahora - ultimoAviso > 1200) {
+        ultimoAviso = ahora;
+        Swal.fire({
+          icon: 'warning',
+          title: 'Entrada inválida',
+          text: 'No se aceptan números ni símbolos.',
+          timer: 1400,
+          showConfirmButton: false
+        });
+      }
+    }
+  });
+}
+
+// Aplicar validación a ambos campos
+validarSoloLetras(inputNombre);
+validarSoloLetras(inputFunciones);
+
+// ====== SUELDO: solo valores positivos ======
+inputSueldo.addEventListener('input', () => {
+  const val = parseFloat(inputSueldo.value);
+  if (isNaN(val) || val < 0) inputSueldo.value = '';
+});
+
+// ====== Modal NUEVO ======
 btnNuevo.addEventListener('click', () => {
   modo = 'crear';
   form.reset();
@@ -81,17 +149,34 @@ btnNuevo.addEventListener('click', () => {
   modal.style.display = 'flex';
 });
 
+// Cancelar
 cancelar.addEventListener('click', () => modal.style.display = 'none');
 
+// ====== Guardar (crear/editar) ======
 form.addEventListener('submit', async e => {
   e.preventDefault();
+
+  // Validaciones antes de enviar
+  if (!inputNombre.value) {
+    Swal.fire('Validación','El nombre del puesto es obligatorio.','warning');
+    return;
+  }
+  if (!inputFunciones.value) {
+    Swal.fire('Validación','Debes completar las funciones.','warning');
+    return;
+  }
+  if (!inputSueldo.value || parseFloat(inputSueldo.value) < 0) {
+    Swal.fire('Validación','Ingresa un sueldo base válido (0 o mayor).','warning');
+    return;
+  }
+
   const data = {
-    nom_puesto: document.getElementById('nombre').value.trim(),
-    funciones_puesto: document.getElementById('funciones').value.trim(),
-    sueldo_base: parseFloat(document.getElementById('sueldo').value),
+    nom_puesto: inputNombre.value.trim(),
+    funciones_puesto: inputFunciones.value.trim(),
+    sueldo_base: parseFloat(inputSueldo.value),
     fec_registro: new Date().toISOString(),
     usr_registro: 'admin',
-    cod_fuente_financiamiento: parseInt(document.getElementById('fuente').value)
+    cod_fuente_financiamiento: 1
   };
   const id = idInput.value;
 
@@ -104,7 +189,7 @@ form.addEventListener('submit', async e => {
 
     const resJson = await res.json();
     if (res.ok) {
-      Swal.fire('Éxito', resJson.mensaje, 'success');
+      Swal.fire('Éxito', resJson.mensaje || 'Operación realizada correctamente', 'success');
       modal.style.display = 'none';
       cargarPuestos();
     } else {
@@ -115,6 +200,7 @@ form.addEventListener('submit', async e => {
   }
 });
 
+// ====== Carga de tabla ======
 function cargarPuestos() {
   fetch(api + '?detalles=true')
     .then(res => res.json())
@@ -128,19 +214,24 @@ function cargarPuestos() {
             <td>L. ${parseFloat(p.sueldo_base).toFixed(2)}</td>
             <td class="acciones-botones">
               <button class="btn btn-warning" onclick='editar(${JSON.stringify(p)})'>Editar</button>
-              <button class="btn btn-danger" onclick="eliminar(${p.cod_puesto}, '${p.nom_puesto}')">Eliminar</button>
+              <button class="btn btn-danger" onclick="eliminar(${p.cod_puesto}, '${p.nom_puesto.replace(/'/g, "\\'")}')">Eliminar</button>
             </td>
           </tr>`;
       });
+    })
+    .catch(() => {
+      cuerpoTabla.innerHTML = `
+        <tr><td colspan="4" class="text-center">No se pudo cargar la lista de puestos.</td></tr>
+      `;
     });
 }
 
 function editar(p) {
   modo = 'editar';
   idInput.value = p.cod_puesto;
-  document.getElementById('nombre').value = p.nom_puesto;
-  document.getElementById('funciones').value = p.funciones_puesto;
-  document.getElementById('sueldo').value = p.sueldo_base;
+  inputNombre.value = (p.nom_puesto || '').toString().toUpperCase();
+  inputFunciones.value = (p.funciones_puesto || '').toString().toUpperCase();
+  inputSueldo.value = p.sueldo_base ?? '';
   document.getElementById('tituloModal').textContent = 'Editar Puesto';
   modal.style.display = 'flex';
 }
@@ -161,7 +252,7 @@ async function eliminar(id, nombre) {
         const res = await fetch(`${api}/${id}`, { method: 'DELETE' });
         const json = await res.json();
         if (res.ok) {
-          Swal.fire('Eliminado', json.mensaje, 'success');
+          Swal.fire('Eliminado', json.mensaje || 'Puesto eliminado correctamente', 'success');
           cargarPuestos();
         } else {
           throw new Error(json.error || 'Error al eliminar');

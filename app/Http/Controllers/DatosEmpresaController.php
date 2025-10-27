@@ -4,12 +4,16 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Auth;
 
 class DatosEmpresaController extends Controller
 {
     public function index()
     {
-        $response = Http::get('https://rrhh-didadpol-1.onrender.com/api/datos_empresa');
+        $response = Http::withHeaders([
+            'X-User-Id'       => (string) (Auth::id() ?? ''),
+            'X-Forwarded-For' => request()->ip(),
+        ])->get('https://rrhh-didadpol-1.onrender.com/api/datos_empresa');
 
         if ($response->successful()) {
             $datos = $response->json();
@@ -19,14 +23,12 @@ class DatosEmpresaController extends Controller
         }
     }
 
-    
     public function actualizar(Request $request, $id)
     {
-       $response = Http::withHeaders([
-    'X-User-Id'       => (string) (Auth::id() ?? ''),  // ← manda el id del usuario actual
-    'X-Forwarded-For' => request()->ip(),              // ← manda su IP real
-])->put('https://rrhh-didadpol-1.onrender.com/api/datos_empresa');
-
+        $response = Http::withHeaders([
+            'X-User-Id'       => (string) (Auth::id() ?? ''),
+            'X-Forwarded-For' => $request->ip(),
+        ])->put("https://rrhh-didadpol-1.onrender.com/api/datos_empresa/{$id}", $request->all());
 
         if ($response->successful()) {
             return redirect()->route('datos_empresa.index')->with('success', 'Datos actualizados correctamente.');

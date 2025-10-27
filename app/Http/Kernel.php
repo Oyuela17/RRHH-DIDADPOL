@@ -30,13 +30,19 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
 
-            // 👇 Este es tu middleware personalizado
+            // 👇 Añadido: Middleware para registrar usuario e IP en PostgreSQL
+            \App\Http\Middleware\SetPgAuditContext::class,
+
+            // 👇 Tu middleware existente de control de usuarios
             \App\Http\Middleware\VerificarEstadoUsuario::class,
         ],
 
         'api' => [
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+
+            // 👇 Añadido también para peticiones API
+            \App\Http\Middleware\SetPgAuditContext::class,
         ],
     ];
 
@@ -55,4 +61,3 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
     ];
 }
-

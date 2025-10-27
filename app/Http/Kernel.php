@@ -6,9 +6,6 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
 class Kernel extends HttpKernel
 {
-    /**
-     * Middleware global del sistema (aplica a todas las rutas)
-     */
     protected $middleware = [
         \App\Http\Middleware\TrustProxies::class,
         \Illuminate\Http\Middleware\HandleCors::class,
@@ -18,9 +15,6 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
     ];
 
-    /**
-     * Middleware en grupo (web/api)
-     */
     protected $middlewareGroups = [
         'web' => [
             \App\Http\Middleware\EncryptCookies::class,
@@ -30,10 +24,10 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
 
-            // 👇 Añadido: Middleware para registrar usuario e IP en PostgreSQL
+            // ✅ Añadido: envía user_id e IP a PostgreSQL en cada request web
             \App\Http\Middleware\SetPgAuditContext::class,
 
-            // 👇 Tu middleware existente de control de usuarios
+            // Tu middleware existente
             \App\Http\Middleware\VerificarEstadoUsuario::class,
         ],
 
@@ -41,14 +35,11 @@ class Kernel extends HttpKernel
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
 
-            // 👇 Añadido también para peticiones API
+            // ✅ Añadido: también para peticiones API
             \App\Http\Middleware\SetPgAuditContext::class,
         ],
     ];
 
-    /**
-     * Middleware por rutas individuales
-     */
     protected $routeMiddleware = [
         'auth' => \App\Http\Middleware\Authenticate::class,
         'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,

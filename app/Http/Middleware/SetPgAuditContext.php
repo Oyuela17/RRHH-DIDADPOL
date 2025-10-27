@@ -11,17 +11,12 @@ class SetPgAuditContext
 {
     public function handle(Request $request, Closure $next)
     {
-        // 1) IP real (con TrustProxies configurado)
         $ip = $request->ip() ?? '';
-
-        // 2) Intentar por Auth
         $userId = Auth::id();
 
-        // 3) Fallback: si Auth aún no está resuelto en esta ruta,
-        //    leemos el user_id directamente de la tabla sessions.
         if (!$userId) {
             try {
-                $sessionId = $request->session()->getId(); // id de la cookie "laravel_session"
+                $sessionId = $request->session()->getId();
                 if ($sessionId) {
                     $row = DB::table('sessions')->where('id', $sessionId)->first();
                     if ($row && !empty($row->user_id)) {
@@ -29,15 +24,26 @@ class SetPgAuditContext
                     }
                 }
             } catch (\Throwable $e) {
-                // silencioso: no romper la request
+                // silencioso
             }
         }
 
-        // 4) Enviar variables a PostgreSQL a NIVEL DE SESIÓN (false)
-        //    para que alcancen todos los INSERT/UPDATE/DELETE del request
-        DB::statement("select set_config('app.user_id', ?, false)", [$userId ? (string)$userId : '']);
-        DB::statement("select set_config('app.ip', ?, false)", [$ip]);
+        try {
+            // set_config(scope: false) = scope sesión/conexión
+            DB::statement("select set_config('app.user_id', ?, false)", [$userId ? (string)$userId : '']);
+            DB::statement("select set_config('app.ip', ?, false)", [$ip]);
 
-        return $next($request);
+            $response = $next($request);
+        } finally {
+            // MUY IMPORTANTE: limpiar para que otra request no herede
+            try {
+                DB::statement("reset app.user_id");
+                DB::statement("reset app.ip");
+            } catch (\Throwable $e) {
+                // ignorar
+            }
+        }
+
+        return $response;
     }
 }

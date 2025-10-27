@@ -6,6 +6,9 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 
 class Kernel extends HttpKernel
 {
+    /**
+     * Middleware global (todas las peticiones)
+     */
     protected $middleware = [
         \App\Http\Middleware\TrustProxies::class,
         \Illuminate\Http\Middleware\HandleCors::class,
@@ -15,6 +18,9 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
     ];
 
+    /**
+     * Grupos de middleware (web/api)
+     */
     protected $middlewareGroups = [
         'web' => [
             \App\Http\Middleware\EncryptCookies::class,
@@ -24,22 +30,20 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
 
-            // ✅ Añadido: envía user_id e IP a PostgreSQL en cada request web
-            \App\Http\Middleware\SetPgAuditContext::class,
-
-            // Tu middleware existente
+            // Tu middleware existente de verificación de estado
             \App\Http\Middleware\VerificarEstadoUsuario::class,
         ],
 
         'api' => [
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
-
-            // ✅ Añadido: también para peticiones API
-            \App\Http\Middleware\SetPgAuditContext::class,
         ],
     ];
 
+    /**
+     * Aliases de middleware para usar en rutas
+     * (se pueden encadenar y controlan el orden de ejecución)
+     */
     protected $routeMiddleware = [
         'auth' => \App\Http\Middleware\Authenticate::class,
         'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
@@ -50,5 +54,9 @@ class Kernel extends HttpKernel
         'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+
+        // ✅ Alias para enviar user_id e IP a PostgreSQL
+        // Úsalo DESPUÉS de 'auth' en tus rutas/grupos: ->middleware(['auth','pg.audit'])
+        'pg.audit' => \App\Http\Middleware\SetPgAuditContext::class,
     ];
 }

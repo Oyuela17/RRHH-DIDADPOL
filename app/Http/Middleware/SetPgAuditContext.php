@@ -10,10 +10,11 @@ class SetPgAuditContext
 {
     public function handle($request, Closure $next)
     {
-        $userId = Auth::id();           // null si no hay login
-        $ip     = $request->ip() ?? ''; // IP real (ver paso 2 para proxies)
+        // intenta varias formas de obtener el id
+        $userId = Auth::id() ?? optional($request->user())->id ?? null;
+        $ip     = $request->ip() ?? '';
 
-        // IMPORTANTE: false => a nivel de sesión de la conexión, no solo transacción
+        // nivel de SESIÓN (false) para que aplique a todas las queries del request
         DB::statement("select set_config('app.user_id', ?, false)", [$userId ? (string)$userId : '']);
         DB::statement("select set_config('app.ip', ?, false)", [$ip]);
 

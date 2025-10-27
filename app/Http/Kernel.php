@@ -7,7 +7,7 @@ use Illuminate\Foundation\Http\Kernel as HttpKernel;
 class Kernel extends HttpKernel
 {
     /**
-     * Middleware global (todas las peticiones)
+     * Middleware global
      */
     protected $middleware = [
         \App\Http\Middleware\TrustProxies::class,
@@ -19,7 +19,7 @@ class Kernel extends HttpKernel
     ];
 
     /**
-     * Grupos de middleware (web/api)
+     * Grupos
      */
     protected $middlewareGroups = [
         'web' => [
@@ -30,19 +30,24 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
 
-            // Tu middleware existente de verificación de estado
+            // Tu validación propia
             \App\Http\Middleware\VerificarEstadoUsuario::class,
+
+            // 👇 Mantén aquí tu middleware (sin tocar rutas)
+            \App\Http\Middleware\SetPgAuditContext::class,
         ],
 
         'api' => [
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+
+            // 👇 También en API
+            \App\Http\Middleware\SetPgAuditContext::class,
         ],
     ];
 
     /**
-     * Aliases de middleware para usar en rutas
-     * (se pueden encadenar y controlan el orden de ejecución)
+     * Aliases por ruta
      */
     protected $routeMiddleware = [
         'auth' => \App\Http\Middleware\Authenticate::class,
@@ -54,9 +59,24 @@ class Kernel extends HttpKernel
         'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+    ];
 
-        // ✅ Alias para enviar user_id e IP a PostgreSQL
-        // Úsalo DESPUÉS de 'auth' en tus rutas/grupos: ->middleware(['auth','pg.audit'])
-        'pg.audit' => \App\Http\Middleware\SetPgAuditContext::class,
+    /**
+     * 🔥 Prioridad de ejecución de middleware
+     * (asegura que SetPgAuditContext corra DESPUÉS de auth)
+     */
+    protected $middlewarePriority = [
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+
+        // auth primero…
+        \App\Http\Middleware\Authenticate::class,
+
+        // …luego nuestro auditor
+        \App\Http\Middleware\SetPgAuditContext::class,
+
+        // el resto habituales:
+        \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        \Illuminate\Auth\Middleware\Authorize::class,
     ];
 }

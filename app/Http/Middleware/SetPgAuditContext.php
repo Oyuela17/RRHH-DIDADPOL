@@ -13,8 +13,10 @@ class SetPgAuditContext
         $userId = Auth::id();
         $ip     = $request->ip() ?? '';
 
-        DB::statement("select set_config('app.user_id', ?, true)", [$userId ? (string)$userId : '']);
-        DB::statement("select set_config('app.ip', ?, true)", [$ip]);
+        // app/Http/Middleware/SetPgAuditContext.php
+              DB::statement("select set_config('app.user_id', ?, false)", [$userId ? (string)$userId : '']);
+              DB::statement("select set_config('app.ip', ?, false)", [$ip]);
+
 
         return $next($request);
     }

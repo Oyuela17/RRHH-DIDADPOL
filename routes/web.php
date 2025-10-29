@@ -21,6 +21,20 @@ use App\Http\Controllers\CalendarioController;
 use App\Http\Controllers\TipoEmpleadoController;
 use App\Http\Controllers\BackupsUiController;
 use App\Http\Controllers\BitacoraController;
+use App\Http\Controllers\ReportesController;
+
+// Reporte Empleado-Asistencia
+Route::get('/reportes',                    [ReportesController::class, 'index'])->name('reportes.index');
+Route::get('/reportes/empleados/general',  [ReportesController::class, 'empleadosGeneral'])->name('reportes.empleados');
+Route::get('/reportes/asistencia/general', [ReportesController::class, 'asistenciaGeneral'])->name('reportes.asistencia');
+
+
+
+Route::get('/reportes/exportar/{tipo}/{formato}', [ReportesController::class, 'exportar'])
+    ->whereIn('tipo', ['empleados','asistencia'])
+    ->whereIn('formato', ['html','pdf','excel'])
+    ->name('reportes.exportar');
+
 
 
     Route::middleware(['auth'])->group(function () {

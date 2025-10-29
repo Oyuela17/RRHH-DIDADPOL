@@ -3065,7 +3065,288 @@ app.delete('/api/planillas/by-persona/:cod_persona', async (req, res) => {
   }
 });
 
+// ===============================
+// REPORTE GENERAL - EMPLEADOS
+// ===============================
+app.get('/api/reportes/empleados/general', async (req, res) => {
+  try {
+    // KPIs: activos/inactivos/sin contrato, salario promedio/mediana, antigüedad promedio
+    const kpisQuery = `
+      WITH base AS (
+        SELECT
+          e.cod_empleado,
+          e.fecha_contratacion,
+          ch.contrato_activo,
+          NULLIF(ch.salario, '0')::numeric AS salario
+        FROM empleados e
+        LEFT JOIN empleados_contratos_histor ch
+          ON ch.cod_empleado = e.cod_empleado
+         AND ch.contrato_activo = true
+      )
+      SELECT
+        COUNT(*)                                                  AS total,
+        COUNT(*) FILTER (WHERE contrato_activo = true)            AS activos,
+        COUNT(*) FILTER (WHERE contrato_activo = false)           AS inactivos,
+        COUNT(*) FILTER (WHERE contrato_activo IS NULL)           AS sin_contrato,
 
+        -- avg(salario) ya es numeric, pero lo casteamos explícitamente por seguridad
+        ROUND(CAST(AVG(salario) AS numeric), 2)                   AS salario_promedio,
+
+        -- percentile_cont puede devolver double precision -> casteo a numeric antes de redondear
+        ROUND(
+          CAST(percentile_cont(0.5) WITHIN GROUP (ORDER BY salario) AS numeric),
+          2
+        )                                                         AS salario_mediana,
+
+        -- EXTRACT/AGE -> double precision; se castea a numeric antes de round
+        ROUND(
+          CAST(AVG(EXTRACT(YEAR FROM AGE(CURRENT_DATE, fecha_contratacion))) AS numeric),
+          2
+        )                                                         AS antiguedad_promedio_anios
+      FROM base;
+    `;
+
+    // Barras: empleados por oficina
+    const porOficinaQuery = `
+      SELECT
+        COALESCE(o.nom_oficina, 'Sin oficina') AS nombre_oficina,
+        COUNT(*)                                AS total
+      FROM empleados e
+      LEFT JOIN oficinas o ON o.cod_oficina = e.cod_oficina
+      GROUP BY 1
+      ORDER BY total DESC, nombre_oficina ASC;
+    `;
+
+    // Pastel: distribución por modalidad
+    const porModalidadQuery = `
+      SELECT
+        COALESCE(tm.nom_tipo, 'Sin modalidad') AS modalidad,
+        COUNT(*)                                AS total
+      FROM empleados e
+      LEFT JOIN tipos_modalidades tm ON tm.cod_tipo_modalidad = e.cod_tipo_modalidad
+      GROUP BY 1
+      ORDER BY total DESC, modalidad ASC;
+    `;
+
+    // Pastel/barras: distribución por nivel educativo
+    const porNivelEduQuery = `
+      SELECT
+        COALESCE(ne.nom_nivel, 'Sin nivel') AS nivel_educativo,
+        COUNT(*)                            AS total
+      FROM empleados e
+      LEFT JOIN niveles_educativos ne ON ne.cod_nivel_educativo = e.cod_nivel_educativo
+      GROUP BY 1
+      ORDER BY total DESC, nivel_educativo ASC;
+    `;
+
+    // Barras horizontales: top puestos por cantidad
+    const topPuestosQuery = `
+      SELECT
+        COALESCE(pu.nom_puesto, 'Sin puesto') AS puesto,
+        COUNT(*)                               AS total
+      FROM empleados e
+      LEFT JOIN puestos pu ON pu.cod_puesto = e.cod_puesto
+      GROUP BY 1
+      ORDER BY total DESC, puesto ASC
+      LIMIT 12;
+    `;
+
+    // Tabla-resumen (para exportar/mostrar)
+    const tablaQuery = `
+      SELECT
+        p.nombre_completo,
+        p.dni,
+        COALESCE(o.nom_oficina, 'Sin oficina')        AS nombre_oficina,
+        COALESCE(pu.nom_puesto, 'Sin puesto')         AS puesto,
+        COALESCE(tm.nom_tipo, 'Sin modalidad')        AS modalidad,
+        COALESCE(ne.nom_nivel, 'Sin nivel')           AS nivel_educativo,
+        e.fecha_contratacion,
+        ch.contrato_activo,
+        NULLIF(ch.salario, '0')::numeric              AS salario
+      FROM empleados e
+      LEFT JOIN personas p              ON p.cod_persona = e.cod_persona
+      LEFT JOIN oficinas o              ON o.cod_oficina = e.cod_oficina
+      LEFT JOIN puestos pu              ON pu.cod_puesto = e.cod_puesto
+      LEFT JOIN tipos_modalidades tm    ON tm.cod_tipo_modalidad = e.cod_tipo_modalidad
+      LEFT JOIN niveles_educativos ne   ON ne.cod_nivel_educativo = e.cod_nivel_educativo
+      LEFT JOIN empleados_contratos_histor ch
+             ON ch.cod_empleado = e.cod_empleado AND ch.contrato_activo = true
+      ORDER BY p.nombre_completo ASC;
+    `;
+
+    const [kpis, ofis, mods, niveles, puestos, tabla] = await Promise.all([
+      pool.query(kpisQuery),
+      pool.query(porOficinaQuery),
+      pool.query(porModalidadQuery),
+      pool.query(porNivelEduQuery),
+      pool.query(topPuestosQuery),
+      pool.query(tablaQuery)
+    ]);
+
+    res.json({
+      kpis: kpis.rows[0] || null,
+      charts: {
+        por_oficina: ofis.rows,
+        por_modalidad: mods.rows,
+        por_nivel_educativo: niveles.rows,
+        top_puestos: puestos.rows
+      },
+      tabla: tabla.rows
+    });
+  } catch (error) {
+    console.error('Error en reporte general de empleados:', error);
+    res.status(500).json({ error: 'Error al generar reporte de empleados' });
+  }
+});
+
+// ===================================
+// REPORTE GENERAL - ASISTENCIA (MES)
+// ===================================
+app.get('/api/reportes/asistencia/general', async (req, res) => {
+  try {
+    // 1) Resolver mes/año con defaults (mes actual si no envían)
+    const now = new Date();
+    const mes  = Number.parseInt(req.query.mes ?? (now.getMonth() + 1), 10);
+    const anio = Number.parseInt(req.query.anio ?? now.getFullYear(), 10);
+
+    if (!Number.isInteger(mes) || !Number.isInteger(anio) || mes < 1 || mes > 12 || anio < 1900) {
+      return res.status(400).json({ error: 'Mes y año son requeridos y válidos' });
+    }
+
+    // 2) Rango de fecha del mes [inicio, fin)
+    const desde = new Date(anio, mes - 1, 1);  // inclusive
+    const hasta = new Date(anio, mes, 1);      // exclusivo
+    const diasEnMes = new Date(anio, mes, 0).getDate();
+
+    // 3) Empleados (para cruzar oficina/puesto)
+    const empleadosQuery = `
+      SELECT
+        e.cod_empleado,
+        p.nombre_completo,
+        p.dni,
+        COALESCE(o.nom_oficina, 'Sin oficina') AS nombre_oficina,
+        COALESCE(pu.nom_puesto,  'Sin puesto') AS puesto
+      FROM empleados e
+      LEFT JOIN personas p ON p.cod_persona = e.cod_persona
+      LEFT JOIN oficinas o ON o.cod_oficina = e.cod_oficina
+      LEFT JOIN puestos  pu ON pu.cod_puesto  = e.cod_puesto
+      ORDER BY p.nombre_completo;
+    `;
+    const { rows: empleados } = await pool.query(empleadosQuery);
+
+    // 4) Asistencias en el rango (mejor que EXTRACT por índices)
+    const asistenciasQuery = `
+      SELECT
+        cod_empleado,
+        fecha::date AS fecha,
+        hora_entrada,
+        hora_salida,
+        observacion
+      FROM control_asistencia
+      WHERE fecha >= $1::date
+        AND fecha <  $2::date
+      ORDER BY fecha ASC, cod_empleado ASC;
+    `;
+    const { rows: asistencias } = await pool.query(asistenciasQuery, [desde, hasta]);
+
+    // 5) Agregados en memoria
+    const idxEmpleado = new Map(empleados.map(e => [e.cod_empleado, e]));
+    const presentesPorEmpleado = new Map(); // Set de días presentes
+    const horasPorEmpleado = new Map();     // Horas acumuladas
+
+    const diffHoras = (entrada, salida, fecha) => {
+      if (!entrada || !salida) return 0;
+      const ymd = fecha.toISOString().slice(0, 10);
+      const e = new Date(`${ymd}T${entrada}`);
+      const s = new Date(`${ymd}T${salida}`);
+      const h = (s - e) / 3600000;
+      return Number.isFinite(h) && h > 0 ? h : 0;
+    };
+
+    let horasTotales = 0;
+
+    for (const a of asistencias) {
+      const setDias = presentesPorEmpleado.get(a.cod_empleado) || new Set();
+      setDias.add(a.fecha.getDate());
+      presentesPorEmpleado.set(a.cod_empleado, setDias);
+
+      const prev = horasPorEmpleado.get(a.cod_empleado) || 0;
+      const h    = diffHoras(a.hora_entrada, a.hora_salida, a.fecha); // solo cerrados
+      horasPorEmpleado.set(a.cod_empleado, prev + h);
+      horasTotales += h;
+    }
+
+    const totalEmpleados = empleados.length;
+    const asistenciasEfectivas = [...presentesPorEmpleado.values()]
+      .reduce((acc, s) => acc + s.size, 0);
+
+    const asistenciasEsperadas = totalEmpleados * diasEnMes;
+    const asistenciaPct = asistenciasEsperadas > 0
+      ? Math.round(((asistenciasEfectivas / asistenciasEsperadas) * 100 + Number.EPSILON) * 100) / 100
+      : 0;
+
+    const horasTotalesRed = Math.round((horasTotales + Number.EPSILON) * 100) / 100;
+    const horasPromedioEmpleado = totalEmpleados > 0
+      ? Math.round(((horasTotales / totalEmpleados) + Number.EPSILON) * 100) / 100
+      : 0;
+
+    // Ranking por ausencias
+    const rankingAusencias = empleados.map(e => {
+      const presentes = (presentesPorEmpleado.get(e.cod_empleado) || new Set()).size;
+      const ausencias = Math.max(diasEnMes - presentes, 0);
+      return { cod_empleado: e.cod_empleado, nombre: e.nombre_completo, dni: e.dni || '-', nombre_oficina: e.nombre_oficina, puesto: e.puesto, presentes, ausencias };
+    }).sort((a, b) => b.ausencias - a.ausencias).slice(0, 12);
+
+    // Barras por oficina
+    const empleadosPorOficina = new Map();
+    empleados.forEach(e => empleadosPorOficina.set(e.nombre_oficina, (empleadosPorOficina.get(e.nombre_oficina) || 0) + 1));
+
+    const presentesPorOficina = new Map();
+    presentesPorEmpleado.forEach((diasSet, cod) => {
+      const e = idxEmpleado.get(cod);
+      if (!e) return;
+      const key = e.nombre_oficina;
+      presentesPorOficina.set(key, (presentesPorOficina.get(key) || 0) + diasSet.size);
+    });
+
+    const asistenciaPorOficina = [...empleadosPorOficina.entries()].map(([oficina, count]) => {
+      const pres = presentesPorOficina.get(oficina) || 0;
+      const esper = count * diasEnMes;
+      const pct = esper > 0 ? Math.round(((pres / esper) * 100 + Number.EPSILON) * 100) / 100 : 0;
+      return { nombre_oficina: oficina, empleados: count, presentes: pres, asistencia_pct: pct };
+    }).sort((a, b) => b.asistencia_pct - a.asistencia_pct);
+
+    // Tabla detalle
+    const tabla = empleados.map(e => ({
+      cod_empleado: e.cod_empleado,
+      nombre: e.nombre_completo,
+      dni: e.dni || '-',
+      nombre_oficina: e.nombre_oficina,
+      puesto: e.puesto,
+      dias_presentes: (presentesPorEmpleado.get(e.cod_empleado) || new Set()).size,
+      horas_mes: Math.round(((horasPorEmpleado.get(e.cod_empleado) || 0) + Number.EPSILON) * 100) / 100
+    })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    res.json({
+      periodo: { mes, anio, dias_mes: diasEnMes },
+      kpis: {
+        empleados: totalEmpleados,
+        total_registros: asistencias.length,
+        asistencia_pct: asistenciaPct,
+        horas_totales: horasTotalesRed,
+        horas_promedio_empleado: horasPromedioEmpleado
+      },
+      charts: {
+        asistencia_por_oficina: asistenciaPorOficina,
+        ranking_ausencias: rankingAusencias
+      },
+      tabla
+    });
+  } catch (error) {
+    console.error('Error en reporte general de asistencia:', error);
+    res.status(500).json({ error: 'Error al generar reporte de asistencia' });
+  }
+});
 
 // =========================
 // 🚀 INICIAR SERVIDOR (Render Compatible)

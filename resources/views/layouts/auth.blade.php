@@ -20,6 +20,7 @@
     'resources/css/puestos.css',
     'resources/css/personas.css',
     'resources/css/asistencia.css',
+    'resources/css/reportes.css',
     'resources/css/asistencia_admin.css',
     'resources/css/datos_empresa.css',
     'resources/css/niveles_educativos.css',

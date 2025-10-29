@@ -144,6 +144,8 @@
 
              <li><a href="{{ route('backups.index') }}"><i class="fas fa-database"></i> Backup</a></li>
 
+             <li><a href="{{ route('reportes.index') }}"><i class="fas fa-chart-line"></i> Reportes Generales</a></li>
+
         </ul>
 
             

@@ -2029,7 +2029,6 @@ app.get('/api/datos_empresa', async (req, res) => {
 
 
 // PUT: Actualizar un registro de datos_empresa por cod_empresa
-
 app.put('/api/datos_empresa/:id', async (req, res) => {
   const { id } = req.params;
   const {
@@ -2092,7 +2091,81 @@ app.put('/api/datos_empresa/:id', async (req, res) => {
     console.error('Error al actualizar datos de la empresa:', error);
     res.status(500).json({ mensaje: 'Error al actualizar datos de la empresa' });
   }
+});// PUT: Actualizar un registro de datos_empresa por cod_empresa
+app.put('/api/datos_empresa/:id', async (req, res) => {
+  const { id } = req.params;
+  const {
+    nom_empresa,
+    contacto,
+    direccion,
+    pais,
+    ciudad,
+    departamento,
+    cod_postal,
+    email,
+    num_fijo,
+    num_celular,
+    fax,
+    pag_web,
+    cod_municipio
+  } = req.body;
+
+  try {
+    const sql = `
+      UPDATE public.datos_empresa SET
+        nom_empresa   = $1,
+        contacto      = $2,
+        direccion     = $3,
+        pais          = $4,
+        ciudad        = $5,
+        departamento  = $6,
+        cod_postal    = $7,
+        email         = $8,
+        num_fijo      = $9,
+        num_celular   = $10,
+        fax           = $11,
+        pag_web       = $12,
+        fec_registro  = NOW(),
+        cod_municipio = $13
+      WHERE cod_empresa = $14
+      RETURNING cod_empresa, nom_empresa, contacto, direccion, pais, ciudad,
+                departamento, cod_postal, email, num_fijo, num_celular,
+                fax, pag_web, cod_municipio, fec_registro;
+    `;
+
+    const params = [
+      nom_empresa,
+      contacto,
+      direccion,
+      pais,
+      ciudad,
+      departamento,
+      cod_postal,
+      email,
+      num_fijo,
+      num_celular,
+      fax,
+      pag_web,
+      cod_municipio, // $13
+      id             // $14
+    ];
+
+    const { rows } = await pool.query(sql, params);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ mensaje: 'Empresa no encontrada' });
+    }
+
+    res.status(200).json({
+      mensaje: 'Datos de empresa actualizados correctamente',
+      data: rows[0]
+    });
+  } catch (error) {
+    console.error('Error al actualizar datos de la empresa:', error);
+    res.status(500).json({ mensaje: 'Error al actualizar datos de la empresa' });
+  }
 });
+
 
 //Personas 
  

@@ -216,7 +216,7 @@
     }
 
     try {
-      const res = await fetch(`http://localhost:3000/api/datos_empresa/${codEmpresa}`, {
+      const res = await fetch(`https://rrhh-didadpol-1.onrender.com/api/datos_empresa/${codEmpresa}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Carbon\Carbon;
 
 class ControlAsistenciaController extends Controller
@@ -19,20 +20,18 @@ class ControlAsistenciaController extends Controller
         return Carbon::parse($limpia, $this->tz)->format('h:i A');
     }
 
-    public function index()
+    public function index(Request $request)
     {
         try {
-            // Validar relación empleado
             if (!auth()->check() || !auth()->user()->empleado) {
                 return view('asistencia.index')->with('error', 'Usuario sin empleado asignado.');
             }
 
             $cod = auth()->user()->empleado->cod_empleado;
 
-            // === Registro de HOY (la API ya usa CURRENT_DATE) ===
-            $hoy = Http::get("{$this->apiBase}/{$cod}/hoy")->json(); // puede venir null
+            // === Registro HOY ===
+            $hoy = Http::get("{$this->apiBase}/{$cod}/hoy")->json();
 
-            // Último punch a mostrar (si hay salida usar salida, si no la entrada)
             $ultimoPunch = '-';
             if ($hoy) {
                 if (!empty($hoy['hora_salida'])) {
@@ -42,15 +41,14 @@ class ControlAsistenciaController extends Controller
                 }
             }
 
-            // Acción del botón: si hay entrada sin salida => Salida; de lo contrario => Entrada
             $accion = (!empty($hoy) && !empty($hoy['hora_entrada']) && empty($hoy['hora_salida']))
                         ? 'Salida'
                         : 'Entrada';
 
-            // === Estadísticas (API ya calcula con CURRENT_DATE/LOCALTIME) ===
+            // === Estadísticas ===
             $estadisticas = Http::get("{$this->apiBase}/{$cod}/estadisticas")->json();
 
-            // === Actividad de HOY en la vista (usamos el endpoint de hoy) ===
+            // === Actividad de HOY para la vista ===
             $actividadHoy = $hoy ? [[
                 'fecha'        => Carbon::now($this->tz)->toDateString(),
                 'hora_entrada' => $this->fmt($hoy['hora_entrada'] ?? null),
@@ -58,8 +56,39 @@ class ControlAsistenciaController extends Controller
                 'observacion'  => $hoy['observacion'] ?? null,
             ]] : [];
 
-            // === Historial completo ===
-            $historial = Http::get("{$this->apiBase}/{$cod}")->json();
+            // ==========================================================
+            // === Historial paginado (desde array => LengthAwarePaginator)
+            // ==========================================================
+            $perPage = (int) $request->input('per_page', 10);
+            $page    = (int) $request->input('page', 1);
+
+            // Si tu API soporta paginación, puedes descomentar y usar:
+            // $apiResp   = Http::get("{$this->apiBase}/{$cod}", ['page'=>$page,'per_page'=>$perPage])->json();
+            // $items     = $apiResp['data'] ?? [];
+            // $total     = $apiResp['total'] ?? count($items);
+
+            // Ahora: paginar localmente el array completo de la API
+            $historialArray = Http::get("{$this->apiBase}/{$cod}")->json() ?? [];
+            $total          = count($historialArray);
+
+            // Ordenar por fecha desc si la API no lo hace
+            usort($historialArray, function($a, $b){
+                return strcmp($b['fecha'] ?? '', $a['fecha'] ?? '');
+            });
+
+            $offset   = max(0, ($page - 1) * $perPage);
+            $slice    = array_slice($historialArray, $offset, $perPage);
+
+            $historial = new LengthAwarePaginator(
+                $slice,
+                $total,
+                $perPage,
+                $page,
+                [
+                    'path'  => url()->current(),
+                    'query' => $request->query(), // conserva ?per_page etc.
+                ]
+            );
 
             return view('asistencia.index', compact(
                 'accion',
@@ -82,18 +111,15 @@ class ControlAsistenciaController extends Controller
 
             $cod = auth()->user()->empleado->cod_empleado;
 
-            // Consultar el estado de HOY (la API define "hoy")
             $hoy = Http::get("{$this->apiBase}/{$cod}/hoy")->json();
 
             if (!$hoy || empty($hoy['hora_entrada'])) {
-                // No hay registro hoy => ENTRADA
                 $payload = [
                     'cod_empleado'  => $cod,
                     'tipo_registro' => 'Entrada',
                     'observacion'   => '',
                 ];
             } elseif (empty($hoy['hora_salida'])) {
-                // Hay entrada sin salida => SALIDA (calculamos observación)
                 $entrada = Carbon::parse(explode('.', $hoy['hora_entrada'])[0], $this->tz);
                 $salida  = Carbon::now($this->tz);
                 $horas   = $entrada->diffInMinutes($salida) / 60;
@@ -108,11 +134,9 @@ class ControlAsistenciaController extends Controller
                     'observacion'   => $observacion,
                 ];
             } else {
-                // Ya tiene entrada y salida hoy
                 return redirect()->route('asistencia.index')->with('mensaje', 'Ya registraste entrada y salida hoy.');
             }
 
-            // Enviar a API
             $response = Http::post($this->apiBase, $payload);
 
             if ($response->successful()) {
@@ -125,5 +149,7 @@ class ControlAsistenciaController extends Controller
         } catch (\Exception $e) {
             return redirect()->route('asistencia.index')->with('error', 'Error en conexión con la API: ' . $e->getMessage());
         }
+
+        
     }
 }

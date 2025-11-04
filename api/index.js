@@ -2083,8 +2083,8 @@ app.put('/api/datos_empresa/:id', async (req, res) => {
       num_celular,
       fax,
       pag_web,
-      cod_municipio, // $13
-      id             // $14
+      cod_municipio, 
+      id             
     ];
 
     const { rows } = await pool.query(sql, params);
@@ -2102,6 +2102,7 @@ app.put('/api/datos_empresa/:id', async (req, res) => {
     res.status(500).json({ mensaje: 'Error al actualizar datos de la empresa' });
   }
 });
+
 //Personas 
  
 app.get('/api/personas/detalle', async (req, res) => {
@@ -2417,6 +2418,122 @@ app.get('/api/control-asistencia', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener datos' });
   }
 });
+
+// ✅ PUT /api/control-asistencia/admin/manual
+app.put('/api/control-asistencia/admin/manual', async (req, res) => {
+  const {
+    cod_empleado,
+    fecha,
+    hora_entrada,
+    hora_salida,
+    observacion
+  } = req.body;
+
+  // === VALIDACIONES BÁSICAS ===
+  if (!cod_empleado || !fecha) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios: cod_empleado o fecha.' });
+  }
+
+  const reHora = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (hora_entrada && !reHora.test(hora_entrada)) {
+    return res.status(400).json({ error: 'hora_entrada inválida (formato HH:MM).' });
+  }
+  if (hora_salida && !reHora.test(hora_salida)) {
+    return res.status(400).json({ error: 'hora_salida inválida (formato HH:MM).' });
+  }
+
+  // Si no hay ninguna hora, no se debe crear fila (tu modelo refleja ausencia como "no registro")
+  if (!hora_entrada && !hora_salida) {
+    return res.status(400).json({ error: 'Debe indicar al menos una hora (entrada o salida).' });
+  }
+
+  // Coherencia: no puede haber salida sin entrada
+  if (hora_salida && !hora_entrada) {
+    return res.status(400).json({ error: 'Para registrar salida, primero debe registrar la entrada.' });
+  }
+
+  // Coherencia: salida no menor que entrada
+  if (hora_entrada && hora_salida && hora_salida < hora_entrada) {
+    return res.status(400).json({ error: 'La hora de salida no puede ser menor que la hora de entrada.' });
+  }
+
+  try {
+    // === tipo_registro (ENUM) SIEMPRE válido ===
+    // - solo entrada: "Entrada"
+    // - entrada + salida: "Salida" (estado final del día)
+    let enumTipo = 'Entrada';
+    if (hora_entrada && hora_salida) enumTipo = 'Salida';
+
+    // === Observación automática ===
+    let obs = observacion || null;
+    if (hora_entrada && hora_salida) {
+      const [eh, em] = hora_entrada.split(':').map(Number);
+      const [sh, sm] = hora_salida.split(':').map(Number);
+      const horas = (sh + sm / 60) - (eh + em / 60);
+
+      if (!obs) {
+        if (horas < 8)        obs = 'Horas incompletas';
+        else if (horas > 8.1) obs = 'Horas extra';
+        else                  obs = 'Asistencia normal';
+      }
+    }
+
+    // === UPDATE primero; si no existe fila, INSERT ===
+    const params = [
+      cod_empleado,
+      fecha,
+      hora_entrada || null,
+      hora_salida  || null,
+      enumTipo,
+      obs
+    ];
+
+    const updateSql = `
+      UPDATE control_asistencia
+         SET hora_entrada = COALESCE($3, hora_entrada),
+             hora_salida  = COALESCE($4, hora_salida),
+             tipo_registro= $5,
+             observacion  = COALESCE($6, observacion),
+             creado_en    = NOW()
+       WHERE cod_empleado = $1 AND fecha = $2
+       RETURNING id;
+    `;
+    const up = await pool.query(updateSql, params);
+
+    let id;
+    if (up.rowCount > 0) {
+      id = up.rows[0].id;
+    } else {
+      const insertSql = `
+        INSERT INTO control_asistencia
+          (cod_empleado, fecha, hora_entrada, hora_salida, tipo_registro, observacion, creado_en)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        RETURNING id;
+      `;
+      const ins = await pool.query(insertSql, params);
+      id = ins.rows[0].id;
+    }
+
+    return res.json({
+      ok: true,
+      message: 'Registro de asistencia manual guardado correctamente.',
+      id,
+      registro: {
+        cod_empleado,
+        fecha,
+        hora_entrada: hora_entrada || null,
+        hora_salida : hora_salida  || null,
+        tipo_registro: enumTipo,
+        observacion : obs
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error en PUT /admin/manual:', err);
+    return res.status(500).json({ error: 'Error al registrar la asistencia manual.' });
+  }
+});
+
+
 
 // Obtener asistencia por empleado
 app.get('/api/control-asistencia/:cod_empleado', async (req, res) => {

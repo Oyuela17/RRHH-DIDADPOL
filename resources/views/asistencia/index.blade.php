@@ -25,6 +25,7 @@
 @endif
 
 <div class="asistencia-wrapper">
+  {{-- Encabezado --}}
   <div class="cabecera-timesheet">
     <h2>Mi Timesheet</h2>
     <div class="hora-actual-reloj">
@@ -34,17 +35,14 @@
   </div>
 
   <div class="contenedor-principal-timesheet">
-    <!-- Punch -->
+    {{-- Tarjeta central con punch --}}
     <div class="card-central card-con-circulo">
       <div class="fecha-dia">
         Hoy {{ \Carbon\Carbon::now('America/Tegucigalpa')->translatedFormat('d M Y') }}
       </div>
 
       <div class="sub-text">
-        @php
-          // $ultimoPunch ya viene formateado desde el controlador (h:i A) o '-'
-          $horaMostrar = $ultimoPunch;
-        @endphp
+        @php $horaMostrar = $ultimoPunch; @endphp
         @if ($accion === 'Entrada')
           Última Salida: {{ $horaMostrar }}
         @else
@@ -52,7 +50,7 @@
         @endif
       </div>
 
-      <!-- Reloj circular -->
+      {{-- Reloj circular --}}
       <div class="progreso-circular">
         <svg class="circle-chart" viewBox="0 0 36 36">
           <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
@@ -72,7 +70,7 @@
       @endif
     </div>
 
-    <!-- Estadísticas -->
+    {{-- Tarjetas de estadísticas --}}
     <div class="estadisticas-tarjetas" id="estadisticasContainer">
       <div class="card-estadistica">
         <div class="icono orange"><i class="fas fa-clock"></i></div>
@@ -112,10 +110,29 @@
     </div>
   </div>
 
-  <!-- Historial -->
+  {{-- Historial con paginación Bootstrap-5 --}}
   <div class="historial-timesheet">
-    <h4>Historial</h4>
-    <table class="tabla-historial">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <h4 style="margin:0;">Historial</h4>
+
+      {{-- Selector por página (opcional) --}}
+      <form method="GET" action="{{ url()->current() }}" style="display:flex;align-items:center;gap:8px;">
+        @foreach(request()->except(['per_page','page']) as $k => $v)
+          <input type="hidden" name="{{ $k }}" value="{{ $v }}">
+        @endforeach
+        <label style="font-size:13px;color:#6b7280;">Mostrar</label>
+        <select name="per_page" onchange="this.form.submit()" class="form-select"
+                style="height:34px;padding:0 8px;width:84px;font-size:13px;">
+          @php $pp = (int)request('per_page', 10); @endphp
+          @foreach([5,10,15,20,25,30] as $n)
+            <option value="{{ $n }}" {{ $pp===$n ? 'selected' : '' }}>{{ $n }}</option>
+          @endforeach
+        </select>
+        <span style="font-size:13px;color:#6b7280;">filas</span>
+      </form>
+    </div>
+
+    <table class="tabla-historial" style="margin-top:10px;">
       <thead>
         <tr>
           <th>Fecha</th>
@@ -125,24 +142,35 @@
         </tr>
       </thead>
       <tbody>
-        @foreach ($historial as $registro)
-        <tr>
-          <td>{{ \Carbon\Carbon::parse($registro['fecha'])->locale('es')->isoFormat('D [de] MMMM [de] YYYY') }}</td>
-          <td>
-            {{ isset($registro['hora_entrada'])
-                ? \Carbon\Carbon::parse(explode('.', $registro['hora_entrada'])[0], 'America/Tegucigalpa')->format('h:i A')
-                : '-' }}
-          </td>
-          <td>
-            {{ isset($registro['hora_salida'])
-                ? \Carbon\Carbon::parse(explode('.', $registro['hora_salida'])[0], 'America/Tegucigalpa')->format('h:i A')
-                : '-' }}
-          </td>
-          <td>{{ $registro['observacion'] ?? '-' }}</td>
-        </tr>
-        @endforeach
+        @forelse ($historial as $registro)
+          <tr>
+            <td>{{ \Carbon\Carbon::parse($registro['fecha'])->locale('es')->isoFormat('D [de] MMMM [de] YYYY') }}</td>
+            <td>
+              {{ isset($registro['hora_entrada'])
+                  ? \Carbon\Carbon::parse(explode('.', $registro['hora_entrada'])[0], 'America/Tegucigalpa')->format('h:i A')
+                  : '-' }}
+            </td>
+            <td>
+              {{ isset($registro['hora_salida'])
+                  ? \Carbon\Carbon::parse(explode('.', $registro['hora_salida'])[0], 'America/Tegucigalpa')->format('h:i A')
+                  : '-' }}
+            </td>
+            <td>{{ $registro['observacion'] ?? '-' }}</td>
+          </tr>
+        @empty
+          <tr>
+            <td colspan="4" style="text-align:center;padding:16px;">Sin registros.</td>
+          </tr>
+        @endforelse
       </tbody>
     </table>
+
+    {{-- Controles de paginación centrados (tema Bootstrap-5) --}}
+    @if ($historial->hasPages())
+      <div style="display:flex;justify-content:center;margin-top:14px;">
+        {{ $historial->appends(request()->except('page'))->links('pagination::bootstrap-4') }}
+      </div>
+    @endif
   </div>
 </div>
 
@@ -167,7 +195,6 @@
     let segundosHoy = Math.round(horasBase * 3600);
     const totalJornada = 8 * 3600;
 
-    // Inicializa el círculo con el progreso actual
     const porcentajeInicial = Math.min((segundosHoy / totalJornada) * 100, 100);
     circle.setAttribute('stroke-dasharray', `${porcentajeInicial}, 100`);
 

@@ -69,11 +69,19 @@ Route::put('/calendario/actualizar-evento/{id}', [CalendarioController::class, '
 Route::delete('/calendario/eliminar-evento/{id}', [CalendarioController::class, 'eliminarEvento']);
 
 
-// Control de asistencia
-Route::get('/control-asistencia/admin', [ControlAsistenciaAdminController::class, 'index'])->name('control_asistencia.admin');
-Route::get('/control-asistencia/export/pdf', [ControlAsistenciaAdminController::class, 'exportarPDF'])->name('asistencia.export.pdf');
-Route::get('/control-asistencia/export/excel', [ControlAsistenciaAdminController::class, 'exportarExcel'])->name('asistencia.export.excel');
+//Control de Asistencia (Administrador)
 
+Route::prefix('control-asistencia')->group(function () {
+    // Vista principal (admin)
+Route::get('/admin', [ControlAsistenciaAdminController::class, 'index'])->name('control_asistencia.admin');
+    // Exportaciones
+Route::get('/export/pdf', [ControlAsistenciaAdminController::class, 'exportarPDF'])->name('control_asistencia.export.pdf');
+Route::get('/export/excel', [ControlAsistenciaAdminController::class, 'exportarExcel'])->name('asistencia.export.excel'); 
+    // Carga manual 
+Route::post('/admin/manual', [ControlAsistenciaAdminController::class, 'manualStore'])->name('control_asistencia.admin.manual.store');
+Route::patch('/admin/manual/{id}', [ControlAsistenciaAdminController::class, 'manualUpdate'])->name('control_asistencia.admin.manual.update');
+Route::put('/control-asistencia/admin/manual', [ControlAsistenciaAdminController::class, 'manualUpsert'])->name('control_asistencia.admin.manual.upsert');
+});
 
 // Asistencia
 Route::get('/asistencia', [ControlAsistenciaController::class, 'index'])->name('asistencia.index');

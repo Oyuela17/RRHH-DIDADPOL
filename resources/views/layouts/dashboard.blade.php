@@ -80,14 +80,7 @@
             @endif
 
            @if(in_array('CONTROL DE ASISTENCIA', $modulosPermitidos))
-           <li class="has-submenu">
-                <input type="checkbox" id="submenu-control-asistencia" class="submenu-toggle" />
-                <label for="submenu-control-asistencia">
-                <i class="fas fa-user-clock"></i> Control de Asistencia</label>
-                <ul class="submenu">
-                     <li><a href="{{ route('control_asistencia.admin') }}"></i> Control de Asistencia</a></li>
-                </ul>
-            </li>
+           <li><a href="{{ route('control_asistencia.admin') }}"><i class="fas fa-user-clock"></i> Control de Asistencia</a></li>
             @endif
 
 

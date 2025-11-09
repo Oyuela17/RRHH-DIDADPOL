@@ -197,28 +197,5 @@ Route::delete('/tipos/{id}', [TipoEmpleadoController::class, 'destroy'])->name('
 
 });
 
-// routes/web.php
-Route::get('/diag/permisos', function () {
-    $user = auth()->user();
-    $roles = $user?->roles()->pluck('roles.id','roles.nombre'); // {NOMBRE: ID}
-
-    // Construcción EXACTA que usas para el menú
-    $rolesIds = $user?->roles()->pluck('roles.id');
-    $mods = \DB::table('modulos')
-        ->join('permisos','permisos.modulo_id','=','modulos.id')
-        ->whereIn('permisos.rol_id', $rolesIds ?? [])
-        ->where('permisos.tiene_acceso', true)
-        ->distinct()
-        ->select('modulos.id','modulos.nombre','permisos.rol_id')
-        ->orderBy('modulos.id')
-        ->get();
-
-    return response()->json([
-        'user_id' => $user?->id,
-        'roles'   => $roles,
-        'mods'    => $mods,
-        'rol_activo_session' => session('rol_actual_id') // si usas rol activo
-    ]);
-})->middleware('auth');
 
 

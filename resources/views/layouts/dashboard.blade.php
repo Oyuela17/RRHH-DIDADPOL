@@ -135,9 +135,13 @@
             </li>
             @endif
 
+            @if(in_array('BACKUPS', $modulosPermitidos ?? []))
              <li><a href="{{ route('backups.index') }}"><i class="fas fa-database"></i> Backup</a></li>
+            @endif
 
+            @if(in_array('REPORTES', $modulosPermitidos ?? []))
              <li><a href="{{ route('reportes.index') }}"><i class="fas fa-chart-line"></i> Reportes Generales</a></li>
+            @endif
 
         </ul>
 

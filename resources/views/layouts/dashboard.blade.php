@@ -145,9 +145,6 @@
 
         </ul>
 
-            
-
-
         <!-- Botón de cerrar sesión -->
         <form id="logout-form-sidebar" action="{{ route('logout') }}" method="POST" class="logout-form-sidebar">
             @csrf

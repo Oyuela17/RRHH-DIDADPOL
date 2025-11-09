@@ -920,36 +920,54 @@ app.get('/api/modulos', async (req, res) => {
   }
 });
 
+
+// ==========================
+// MÓDULOS - Listar todos
+// ==========================
+app.get('/api/modulos', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT id, nombre
+      FROM modulos
+      ORDER BY nombre;
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error al obtener módulos:', error);
+    res.status(500).json({ error: 'Error al obtener módulos' });
+  }
+});
+
 // ==========================
 // PERMISOS - Obtener por rol
 // ==========================
 app.get('/api/permisos/:rol_id', async (req, res) => {
   const { rol_id } = req.params;
-
   try {
-    const resultado = await pool.query(`
+    console.log(`[PERMISOS][GET] rol_id=${rol_id}`);
+    const { rows } = await pool.query(`
       SELECT 
         m.id AS modulo_id, 
         m.nombre, 
-        COALESCE(p.tiene_acceso, FALSE) AS tiene_acceso,
-        COALESCE(p.puede_crear, FALSE) AS puede_crear,
-        COALESCE(p.puede_actualizar, FALSE) AS puede_actualizar,
-        COALESCE(p.puede_eliminar, FALSE) AS puede_eliminar
+        COALESCE(p.tiene_acceso, FALSE)      AS tiene_acceso,
+        COALESCE(p.puede_crear, FALSE)       AS puede_crear,
+        COALESCE(p.puede_actualizar, FALSE)  AS puede_actualizar,
+        COALESCE(p.puede_eliminar, FALSE)    AS puede_eliminar
       FROM modulos m
-      LEFT JOIN permisos p ON p.modulo_id = m.id AND p.rol_id = $1
-      ORDER BY m.nombre
-    `, [rol_id]);
-
-    res.json(resultado.rows);
+      LEFT JOIN permisos p 
+        ON p.modulo_id = m.id 
+       AND p.rol_id = $1
+      ORDER BY m.nombre;
+    `, [Number(rol_id)]);
+    res.json(rows);
   } catch (error) {
     console.error('❌ Error al obtener permisos:', error);
     res.status(500).json({ error: 'Error al obtener permisos' });
   }
 });
 
-
 // ========================================
-// PERMISOS - Crear o actualizar por módulo
+// PERMISOS - Upsert unitario (retro-compatible)
 // ========================================
 app.post('/api/permisos', async (req, res) => {
   const {
@@ -959,46 +977,146 @@ app.post('/api/permisos', async (req, res) => {
     puede_crear = false,
     puede_actualizar = false,
     puede_eliminar = false
-  } = req.body;
+  } = req.body || {};
 
   if (!rol_id || !modulo_id) {
     return res.status(400).json({ error: 'rol_id y modulo_id son obligatorios' });
   }
 
   try {
-    const existe = await pool.query(
-      'SELECT id FROM permisos WHERE rol_id = $1 AND modulo_id = $2',
-      [rol_id, modulo_id]
-    );
+    const sql = `
+      INSERT INTO permisos
+        (rol_id, modulo_id, tiene_acceso, puede_crear, puede_actualizar, puede_eliminar, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6, NOW(), NOW())
+      ON CONFLICT (rol_id, modulo_id) DO UPDATE
+        SET tiene_acceso     = EXCLUDED.tiene_acceso,
+            puede_crear      = EXCLUDED.puede_crear,
+            puede_actualizar = EXCLUDED.puede_actualizar,
+            puede_eliminar   = EXCLUDED.puede_eliminar,
+            updated_at       = NOW();
+    `;
+    await pool.query(sql, [
+      Number(rol_id),
+      Number(modulo_id),
+      !!tiene_acceso,
+      !!puede_crear,
+      !!puede_actualizar,
+      !!puede_eliminar
+    ]);
 
-    if (existe.rowCount > 0) {
-      // Actualizar
-      await pool.query(
-        `UPDATE permisos 
-         SET tiene_acceso = $1,
-             puede_crear = $2,
-             puede_actualizar = $3,
-             puede_eliminar = $4,
-             updated_at = NOW()
-         WHERE rol_id = $5 AND modulo_id = $6`,
-        [tiene_acceso, puede_crear, puede_actualizar, puede_eliminar, rol_id, modulo_id]
-      );
-    } else {
-      // Insertar
-      await pool.query(
-        `INSERT INTO permisos 
-         (rol_id, modulo_id, tiene_acceso, puede_crear, puede_actualizar, puede_eliminar, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
-        [rol_id, modulo_id, tiene_acceso, puede_crear, puede_actualizar, puede_eliminar]
-      );
-    }
-
-    res.json({ mensaje: 'Permisos guardados correctamente' });
+    res.json({ mensaje: 'Permiso guardado correctamente' });
   } catch (error) {
     console.error('❌ Error al guardar permiso:', error);
     res.status(500).json({ error: 'Error al guardar permiso' });
   }
 });
+
+// ========================================
+// PERMISOS - Batch (guarda todo en 1 request)
+// ========================================
+app.post('/api/permisos/batch', async (req, res) => {
+  const { rol_id, modulos } = req.body || {};
+
+  if (!rol_id || !Array.isArray(modulos) || modulos.length === 0) {
+    return res.status(400).json({ error: 'rol_id y modulos[] son obligatorios' });
+  }
+
+  const rows = modulos.map(m => ({
+    rol_id: Number(rol_id),
+    modulo_id: Number(m.modulo_id),
+    tiene_acceso: !!m.tiene_acceso,
+    puede_crear: !!m.puede_crear,
+    puede_actualizar: !!m.puede_actualizar,
+    puede_eliminar: !!m.puede_eliminar
+  }));
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Construir VALUES dinámico
+    const params = [];
+    const values = [];
+    let i = 1;
+
+    for (const r of rows) {
+      params.push(r.rol_id, r.modulo_id, r.tiene_acceso, r.puede_crear, r.puede_actualizar, r.puede_eliminar);
+      values.push(`($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, NOW(), NOW())`);
+    }
+
+    const sql = `
+      INSERT INTO permisos
+        (rol_id, modulo_id, tiene_acceso, puede_crear, puede_actualizar, puede_eliminar, created_at, updated_at)
+      VALUES ${values.join(',')}
+      ON CONFLICT (rol_id, modulo_id) DO UPDATE
+        SET tiene_acceso     = EXCLUDED.tiene_acceso,
+            puede_crear      = EXCLUDED.puede_crear,
+            puede_actualizar = EXCLUDED.puede_actualizar,
+            puede_eliminar   = EXCLUDED.puede_eliminar,
+            updated_at       = NOW();
+    `;
+
+    await client.query(sql, params);
+
+    // Refresco
+    const { rows: refresco } = await client.query(`
+      SELECT 
+        m.id AS modulo_id,
+        m.nombre,
+        COALESCE(p.tiene_acceso, FALSE)      AS tiene_acceso,
+        COALESCE(p.puede_crear, FALSE)       AS puede_crear,
+        COALESCE(p.puede_actualizar, FALSE)  AS puede_actualizar,
+        COALESCE(p.puede_eliminar, FALSE)    AS puede_eliminar
+      FROM modulos m
+      LEFT JOIN permisos p
+        ON p.modulo_id = m.id AND p.rol_id = $1
+      ORDER BY m.nombre;
+    `, [Number(rol_id)]);
+
+    await client.query('COMMIT');
+    res.json({ mensaje: 'Permisos guardados', permisos: refresco });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error batch permisos:', error);
+    res.status(500).json({ error: 'Error al guardar permisos' });
+  } finally {
+    client.release();
+  }
+});
+
+// ========================================
+// PERMISOS - Unión de varios roles (para menú)
+// ========================================
+app.post('/api/permisos/union', async (req, res) => {
+  const { roles = [] } = req.body || {};
+  if (!Array.isArray(roles) || roles.length === 0) {
+    return res.status(400).json({ error: 'roles[] es requerido' });
+  }
+
+  try {
+    const sql = `
+      SELECT 
+        m.id   AS modulo_id,
+        m.nombre,
+        BOOL_OR(COALESCE(p.tiene_acceso, FALSE))      AS tiene_acceso,
+        BOOL_OR(COALESCE(p.puede_crear, FALSE))       AS puede_crear,
+        BOOL_OR(COALESCE(p.puede_actualizar, FALSE))  AS puede_actualizar,
+        BOOL_OR(COALESCE(p.puede_eliminar, FALSE))    AS puede_eliminar
+      FROM modulos m
+      LEFT JOIN permisos p
+        ON p.modulo_id = m.id
+       AND p.rol_id = ANY($1::int[])
+      GROUP BY m.id, m.nombre
+      ORDER BY m.nombre;
+    `;
+    const { rows } = await pool.query(sql, [roles.map(Number)]);
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error unión permisos:', error);
+    res.status(500).json({ error: 'Error al unir permisos' });
+  }
+});
+
 
 // Gestión de empleados - GET
 app.get('/api/empleados', async (req, res) => {

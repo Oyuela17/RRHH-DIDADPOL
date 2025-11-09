@@ -14,13 +14,12 @@
     <div class="lado-izquierdo">
       <input type="text" id="campoBusqueda" class="form-control" placeholder="Buscar rol..." oninput="this.value = this.value.toUpperCase()">
     </div>
-
     <div class="lado-derecho">
-      <form method="GET" action="{{ route('permisos.index') }}" class="mostrar-registros" id="formOrden">
+      <form method="GET" action="{{ route('permisos.index') }}" class="mostrar-registros">
         <label>Ordenar por</label>
-        <select id="ordenarSelect" class="form-control" name="ordenar" onchange="document.getElementById('formOrden').submit()">
-          <option value="nombre" {{ request('ordenar','nombre') === 'nombre' ? 'selected' : '' }}>Nombre (A-Z)</option>
-          <option value="fecha"  {{ request('ordenar') === 'fecha' ? 'selected' : '' }}>Fecha de creación</option>
+        <select id="ordenarSelect" class="form-control">
+          <option value="nombre">Nombre (A-Z)</option>
+          <option value="fecha">Fecha de creación</option>
         </select>
 
         <label>Mostrar</label>
@@ -50,15 +49,14 @@
         <tr data-nombre="{{ strtoupper($rol->nombre) }}" data-fecha="{{ $rol->created_at }}">
           <td>{{ $rol->nombre }}</td>
           <td>
-            @if(strtoupper($rol->estado ?? 'ACTIVO') === 'ACTIVO')
+            @if(strtoupper($rol->estado) === 'ACTIVO')
               <span class="badge-success">ACTIVO</span>
             @else
               <span class="badge-inactivo">INACTIVO</span>
             @endif
           </td>
           <td>
-            <a href="#" class="btn btn-primary btn-ver-permisos"
-               data-id="{{ $rol->id }}" data-nombre="{{ $rol->nombre }}">Ver Permisos</a>
+            <a href="#" class="btn btn-primary btn-ver-permisos" data-id="{{ $rol->id }}" data-nombre="{{ $rol->nombre }}">Ver Permisos</a>
           </td>
         </tr>
       @empty
@@ -76,16 +74,10 @@
 </div>
 
 <!-- MODAL PERMISOS -->
-<div class="modal-permisos" id="modalPermisos" style="display:none;">
+<div class="modal-permisos" id="modalPermisos" style="display: none;">
   <div class="modal-contenido" id="contenedorModalPermisos">
     <h3 class="titulo-modal">Permisos de <span id="nombreRolModal"></span></h3>
-
-    <div id="cargandoModulos" style="display:none; margin:8px 0;">
-      <i class="fa fa-spinner fa-spin"></i> Cargando módulos y permisos...
-    </div>
-
     <form id="formPermisos">
-      @csrf
       <input type="hidden" id="permisoRolId">
 
       <div class="cabecera-acciones">
@@ -99,7 +91,7 @@
       <div id="listaModulos" class="modulos-lista"></div>
 
       <div class="modal-botones">
-        <button type="submit" class="btn btn-guardar" id="btnGuardar">Guardar</button>
+        <button type="submit" class="btn btn-guardar">Guardar</button>
         <button type="button" class="btn btn-cancelar" id="cancelarPermisos">Salir</button>
       </div>
     </form>
@@ -110,31 +102,23 @@
 <script>
 const API_URL = 'https://rrhh-didadpol-1.onrender.com';
 
-// ========== Utilidades ==========
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
+// ===================== PERMISOS ===========================
 function crearSwitches(mod, permiso = {}) {
-  const safeNombre = (mod.nombre || '').toString().toUpperCase().trim();
   return `
-    <div class="permiso-item" data-modulo-id="${mod.id}">
-      <span class="col-modulo">${safeNombre}</span>
-
+    <div class="permiso-item">
+      <span class="col-modulo">${mod.nombre.toUpperCase()}</span>
       <label class="switch-texto col-switch">
         <input type="checkbox" name="acceso_${mod.id}" ${permiso.tiene_acceso ? 'checked' : ''}>
         <span class="slider-texto"></span>
       </label>
-
       <label class="switch-texto col-switch">
         <input type="checkbox" name="crear_${mod.id}" ${permiso.puede_crear ? 'checked' : ''}>
         <span class="slider-texto"></span>
       </label>
-
       <label class="switch-texto col-switch">
         <input type="checkbox" name="actualizar_${mod.id}" ${permiso.puede_actualizar ? 'checked' : ''}>
         <span class="slider-texto"></span>
       </label>
-
       <label class="switch-texto col-switch">
         <input type="checkbox" name="eliminar_${mod.id}" ${permiso.puede_eliminar ? 'checked' : ''}>
         <span class="slider-texto"></span>
@@ -143,115 +127,89 @@ function crearSwitches(mod, permiso = {}) {
   `;
 }
 
-// ========== Abrir modal y cargar datos ==========
-$$('.btn-ver-permisos').forEach(btn => {
-  btn.addEventListener('click', async (e) => {
+document.querySelectorAll('.btn-ver-permisos').forEach(btn => {
+  btn.addEventListener('click', async function (e) {
     e.preventDefault();
-    const rolId = btn.dataset.id;
-    const nombre = (btn.dataset.nombre || '').toUpperCase();
-
-    $('#permisoRolId').value = rolId;
-    $('#nombreRolModal').innerText = nombre;
-    $('#listaModulos').innerHTML = '';
-    $('#modalPermisos').style.display = 'flex';
-    $('#cargandoModulos').style.display = 'block';
+    const rolId = this.dataset.id;
+    const nombre = this.dataset.nombre;
+    document.getElementById('permisoRolId').value = rolId;
+    document.getElementById('nombreRolModal').innerText = nombre.toUpperCase();
+    document.getElementById('modalPermisos').style.display = 'flex';
 
     try {
-      const [modResp, perResp] = await Promise.all([
-        fetch(`${API_URL}/api/modulos`),
-        fetch(`${API_URL}/api/permisos/${rolId}`)
-      ]);
-
-      if (!modResp.ok) throw new Error('Error cargando módulos');
-      if (!perResp.ok) throw new Error('Error cargando permisos');
-
-      const modulos = await modResp.json();
-      const permisos = await perResp.json();
-
-      const lista = $('#listaModulos');
+      const modulos = await (await fetch(`${API_URL}/api/modulos`)).json();
+      const permisos = await (await fetch(`${API_URL}/api/permisos/${rolId}`)).json();
+      const lista = document.getElementById('listaModulos');
       lista.innerHTML = '';
 
       modulos.forEach(mod => {
         const permiso = permisos.find(p => p.modulo_id === mod.id) || {};
-        lista.insertAdjacentHTML('beforeend', crearSwitches(mod, permiso));
+        lista.innerHTML += crearSwitches(mod, permiso);
       });
-
-    } catch (err) {
-      console.error(err);
-      Swal.fire('Error', 'No se pudo cargar la configuración de permisos', 'error');
-      $('#modalPermisos').style.display = 'none';
-    } finally {
-      $('#cargandoModulos').style.display = 'none';
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Error', 'No se pudo cargar los permisos', 'error');
     }
   });
 });
 
-// ========== Guardar permisos ==========
-$('#formPermisos').addEventListener('submit', async (e) => {
+document.getElementById('formPermisos').addEventListener('submit', async function (e) {
   e.preventDefault();
-  const btn = $('#btnGuardar');
-  btn.disabled = true;
-
-  const rolId = parseInt($('#permisoRolId').value, 10);
+  const rolId = document.getElementById('permisoRolId').value;
+  const modulos = await (await fetch(`${API_URL}/api/modulos`)).json();
 
   try {
-    // Re-consultar módulos para conocer todos los IDs a guardar
-    const modResp = await fetch(`${API_URL}/api/modulos`);
-    if (!modResp.ok) throw new Error('Error cargando módulos');
-    const modulos = await modResp.json();
-
-    // Armar payloads por módulo
-    const payloads = modulos.map(mod => {
-      const id = mod.id;
-      return {
-        rol_id: rolId,
-        modulo_id: id,
-        tiene_acceso:   !!document.querySelector(`[name=acceso_${id}]`)?.checked,
-        puede_crear:    !!document.querySelector(`[name=crear_${id}]`)?.checked,
-        puede_actualizar: !!document.querySelector(`[name=actualizar_${id}]`)?.checked,
-        puede_eliminar: !!document.querySelector(`[name=eliminar_${id}]`)?.checked
+    for (const mod of modulos) {
+      const permiso = {
+        rol_id: parseInt(rolId),
+        modulo_id: mod.id,
+        tiene_acceso: document.querySelector(`[name=acceso_${mod.id}]`).checked,
+        puede_crear: document.querySelector(`[name=crear_${mod.id}]`).checked,
+        puede_actualizar: document.querySelector(`[name=actualizar_${mod.id}]`).checked,
+        puede_eliminar: document.querySelector(`[name=eliminar_${mod.id}]`).checked
       };
-    });
-
-    // Guardar en paralelo con tolerancia a fallos
-    const results = await Promise.allSettled(payloads.map(p =>
-      fetch(`${API_URL}/api/permisos`, {
+      await fetch(`${API_URL}/api/permisos`, {
         method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify(p)
-      })
-    ));
-
-    const fallas = results.filter(r => r.status === 'rejected' || (r.value && !r.value.ok));
-    if (fallas.length > 0) {
-      throw new Error('Algunos permisos no se pudieron guardar');
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(permiso)
+      });
     }
-
     Swal.fire('Éxito', 'Permisos guardados correctamente', 'success');
-    $('#modalPermisos').style.display = 'none';
-
-  } catch (err) {
-    console.error(err);
-    Swal.fire('Error', err.message || 'No se pudo guardar los permisos', 'error');
-  } finally {
-    btn.disabled = false;
+    document.getElementById('modalPermisos').style.display = 'none';
+  } catch (error) {
+    Swal.fire('Error', 'No se pudo guardar los permisos', 'error');
   }
 });
 
-// ========== Búsqueda + Ordenamiento en tiempo real (solo UI) ==========
-const campoBusqueda = $('#campoBusqueda');
-const ordenarSelect = $('#ordenarSelect');
+document.getElementById('cancelarPermisos').addEventListener('click', () => {
+  document.getElementById('modalPermisos').style.display = 'none';
+});
+
+// ===================== BÚSQUEDA + ORDENAMIENTO EN TIEMPO REAL ===========================
+const campoBusqueda = document.getElementById('campoBusqueda');
+const ordenarSelect = document.getElementById('ordenarSelect');
 const tablaBody = document.querySelector('.roles-table tbody');
 const paginacion = document.querySelector('.paginacion-wrapper');
+
 const filasOriginales = Array.from(tablaBody.querySelectorAll('tr')).filter(f => f.dataset.nombre);
 
 function filtrarYOrdenar() {
-  let filtro = campoBusqueda.value.trim().toUpperCase();
-  // Sanitizar: solo letras y espacios simples
-  filtro = filtro.replace(/[^A-ZÁÉÍÓÚÑ ]/g, '').replace(/\s+/g, ' ').trim();
+  let filtro = campoBusqueda.value.trim().toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ]/g, '');
   campoBusqueda.value = filtro;
 
+  if (filtro.includes(' ')) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Búsqueda inválida',
+      text: 'Solo se permite una palabra sin espacios.',
+      timer: 2000,
+      showConfirmButton: false
+    });
+    return;
+  }
+
   const criterio = ordenarSelect.value;
+
   let resultado = filasOriginales.filter(f => f.dataset.nombre.includes(filtro));
 
   resultado.sort((a, b) => {
@@ -267,12 +225,10 @@ function filtrarYOrdenar() {
   tablaBody.innerHTML = '';
   resultado.forEach(f => tablaBody.appendChild(f));
 
-  // Oculta paginación solo cuando hay filtro activo
   paginacion.style.display = filtro ? 'none' : '';
 }
 
 campoBusqueda.addEventListener('input', filtrarYOrdenar);
 ordenarSelect.addEventListener('change', filtrarYOrdenar);
-
 </script>
 @endsection

@@ -738,53 +738,76 @@ app.post('/api/recuperar-contrasena', async (req, res) => {
   }
 });
 
+// ============================
+// 🔐 VERIFICACIÓN EN DOS PASOS (2FA)
+// ============================
 
+// ⛑️ CORS (ajusta dominios permitidos)
+app.use(cors({
+  origin: [
+    'https://rrhh-didadpol-main-khmtlb.laravel.cloud', // Laravel Cloud (prod)
+    // agrega otros orígenes si necesitas
+  ],
+  credentials: true,
+}));
 
-// ==========================
-// PARCHE: redirección de seguridad
-// (por si alguien aún abre el enlace viejo de la API)
-// ==========================
-app.get('/definir-contrasena', (req, res) => {
-  const query = req.originalUrl.split('?')[1] || '';
-  const redirectUrl = `https://rrhh-didadpol-main-khmtlb.laravel.cloud/definir-contrasena${query ? '?' + query : ''}`;
-  res.redirect(301, redirectUrl);
+// 🧯 Rate limiting específico para 2FA (por IP)
+const limiter2FA = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutos
+  max: 60,                  // 60 req/10min por IP en endpoints 2FA
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
+// 🧠 Memoria temporal (RAM)
+const challenges = Object.create(null); // { challengeId: { email, codeHash, expiresAt, attempts, resendCount, lastSentAt } }
 
-// ============================
-// 🔐 VERIFICACIÓN EN DOS PASOS
-// ============================
-
-const challenges = {}; // memoria temporal: { challengeId: { email, codeHash, expiresAt, attempts, resendCount, lastSentAt } }
+// ⚙️ Parámetros
 const COOLDOWN_SECONDS = 60;
-const EXPIRES_MINUTES = 5;
-const MAX_ATTEMPTS = 5;
+const EXPIRES_MINUTES  = 5;
+const MAX_ATTEMPTS     = 5;
 
-// Funciones auxiliares
+// 🔧 Helpers
 const sha256 = (txt) => crypto.createHash('sha256').update(txt).digest('hex');
-const generate6 = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+const generate6 = () => String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 const maskEmail = (email) => {
-  const [user, domain] = email.split('@');
-  return `${user.slice(0, 2)}${'*'.repeat(Math.max(user.length - 2, 0))}@${domain}`;
+  const [user, domain] = String(email).split('@');
+  return `${(user || '').slice(0, 2)}${'*'.repeat(Math.max((user || '').length - 2, 0))}@${domain || ''}`;
 };
+const nowMs = () => Date.now();
+
+// 🧹 Limpieza automática de challenges vencidos (cada 2 min)
+setInterval(() => {
+  const t = nowMs();
+  for (const id in challenges) {
+    if (Object.hasOwn(challenges, id) && t > challenges[id].expiresAt) {
+      delete challenges[id];
+    }
+  }
+}, 120_000);
+
+// (Opcional) salud para debug
+app.get('/api/2fa/_status', (req, res) => {
+  res.json({ ok: true, active: Object.keys(challenges).length });
+});
 
 // ============================
 // 1️⃣ Iniciar challenge (enviar código)
 // ============================
-app.post('/api/2fa/start', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Correo requerido' });
-
+app.post('/api/2fa/start', limiter2FA, async (req, res) => {
   try {
-    // 🔹 Aquí puedes validar que el usuario exista con tu pool.query (si lo deseas)
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: 'Correo requerido' });
+
+    // 👉 Si quieres validar usuario existente, descomenta esto:
     // const user = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     // if (user.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    const code = generate6();
-    const codeHash = sha256(code);
+    const code       = generate6();
+    const codeHash   = sha256(code);
     const challengeId = uuidv4();
-    const now = Date.now();
-    const expiresAt = now + EXPIRES_MINUTES * 60 * 1000;
+    const t          = nowMs();
+    const expiresAt  = t + EXPIRES_MINUTES * 60 * 1000;
 
     challenges[challengeId] = {
       email,
@@ -792,10 +815,10 @@ app.post('/api/2fa/start', async (req, res) => {
       expiresAt,
       attempts: 0,
       resendCount: 0,
-      lastSentAt: now
+      lastSentAt: t,
     };
 
-    // ✉️ Enviar correo
+    // ✉️ Enviar correo (usa tu función ya existente)
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
         <h2 style="color:#003366;">Código de verificación</h2>
@@ -810,10 +833,10 @@ app.post('/api/2fa/start', async (req, res) => {
       challenge_id: challengeId,
       masked_email: maskEmail(email),
       expires_in: EXPIRES_MINUTES * 60,
-      cooldown_resend: COOLDOWN_SECONDS
+      cooldown_resend: COOLDOWN_SECONDS,
     });
   } catch (err) {
-    console.error('❌ Error /2fa/start:', err);
+    console.error('❌ Error /api/2fa/start:', err);
     return res.status(500).json({ error: 'Error al iniciar verificación' });
   }
 });
@@ -821,66 +844,83 @@ app.post('/api/2fa/start', async (req, res) => {
 // ============================
 // 2️⃣ Reenviar código (cooldown)
 // ============================
-app.post('/api/2fa/resend', async (req, res) => {
-  const { challenge_id } = req.body;
-  const ch = challenges[challenge_id];
-  if (!ch) return res.status(404).json({ error: 'Challenge no encontrado' });
-
-  const now = Date.now();
-  if (now > ch.expiresAt) return res.status(400).json({ error: 'Challenge expirado' });
-
-  const diff = Math.floor((now - ch.lastSentAt) / 1000);
-  if (diff < COOLDOWN_SECONDS) {
-    return res.status(429).json({ error: 'Debes esperar antes de reenviar', retry_in: COOLDOWN_SECONDS - diff });
-  }
-
+app.post('/api/2fa/resend', limiter2FA, async (req, res) => {
   try {
+    const challenge_id = String(req.body?.challenge_id || '').trim();
+    const ch = challenges[challenge_id];
+    if (!ch) return res.status(404).json({ error: 'Challenge no encontrado' });
+
+    const t = nowMs();
+    if (t > ch.expiresAt) return res.status(400).json({ error: 'Challenge expirado' });
+
+    const diff = Math.floor((t - ch.lastSentAt) / 1000);
+    if (diff < COOLDOWN_SECONDS) {
+      return res.status(429).json({
+        error: 'Debes esperar antes de reenviar',
+        retry_in: COOLDOWN_SECONDS - diff,
+      });
+    }
+
     const code = generate6();
-    ch.codeHash = sha256(code);
+    ch.codeHash    = sha256(code);
     ch.resendCount += 1;
-    ch.lastSentAt = now;
+    ch.lastSentAt  = t;
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
         <h2 style="color:#003366;">Nuevo código 2FA</h2>
         <p>Tu nuevo código de verificación es:</p>
         <div style="font-size:28px;letter-spacing:6px;font-weight:bold;margin:20px 0;">${code}</div>
-        <p>Este challenge expira en ${Math.floor((ch.expiresAt - now) / 60000)} minutos.</p>
+        <p>Este challenge expira en ${Math.max(0, Math.floor((ch.expiresAt - t) / 60000))} minutos.</p>
       </div>
     `;
     await enviarCorreoBrevo(ch.email, 'Reenvío de código (2FA)', html);
 
-    res.json({ mensaje: 'Código reenviado', cooldown_resend: COOLDOWN_SECONDS });
+    return res.json({ mensaje: 'Código reenviado', cooldown_resend: COOLDOWN_SECONDS });
   } catch (err) {
-    console.error('❌ Error /2fa/resend:', err);
-    res.status(500).json({ error: 'Error al reenviar código' });
+    console.error('❌ Error /api/2fa/resend:', err);
+    return res.status(500).json({ error: 'Error al reenviar código' });
   }
 });
 
 // ============================
 // 3️⃣ Verificar código
 // ============================
-app.post('/api/2fa/verify', async (req, res) => {
-  const { challenge_id, code } = req.body;
-  const ch = challenges[challenge_id];
-  if (!ch) return res.status(404).json({ error: 'Challenge no encontrado' });
+app.post('/api/2fa/verify', limiter2FA, async (req, res) => {
+  try {
+    const challenge_id = String(req.body?.challenge_id || '').trim();
+    const codeRaw      = String(req.body?.code || '').trim();
+    if (!challenge_id || !codeRaw) {
+      return res.status(400).json({ error: 'Parámetros incompletos' });
+    }
 
-  const now = Date.now();
-  if (now > ch.expiresAt) return res.status(400).json({ error: 'Challenge expirado' });
-  if (ch.attempts >= MAX_ATTEMPTS) return res.status(403).json({ error: 'Demasiados intentos fallidos' });
+    const ch = challenges[challenge_id];
+    if (!ch) return res.status(404).json({ error: 'Challenge no encontrado' });
 
-  ch.attempts += 1;
+    const t = nowMs();
+    if (t > ch.expiresAt) return res.status(400).json({ error: 'Challenge expirado' });
+    if (ch.attempts >= MAX_ATTEMPTS) return res.status(403).json({ error: 'Demasiados intentos fallidos' });
 
-  const inputHash = sha256(code.trim());
-  if (inputHash !== ch.codeHash) {
-    return res.status(401).json({ error: 'Código incorrecto', attempts_left: MAX_ATTEMPTS - ch.attempts });
+    // Normaliza el código a 6 dígitos (solo números)
+    const code = codeRaw.replace(/\D/g, '').slice(0, 6);
+    ch.attempts += 1;
+
+    const inputHash = sha256(code);
+    if (inputHash !== ch.codeHash) {
+      return res.status(401).json({
+        error: 'Código incorrecto',
+        attempts_left: Math.max(0, MAX_ATTEMPTS - ch.attempts),
+      });
+    }
+
+    // ✅ Código correcto
+    delete challenges[challenge_id];
+
+    return res.json({ ok: true, mensaje: 'Verificación exitosa' });
+  } catch (err) {
+    console.error('❌ Error /api/2fa/verify:', err);
+    return res.status(500).json({ error: 'Error al verificar' });
   }
-
-  // ✅ Código correcto
-  delete challenges[challenge_id]; // eliminar challenge
-
-  // Aquí podrías emitir token o confirmar login real
-  return res.json({ ok: true, mensaje: 'Verificación exitosa' });
 });
 
 

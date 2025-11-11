@@ -715,19 +715,25 @@ res.json({ mensaje: 'Enlace de restablecimiento enviado' });
   }
 });
 
-//LOGIN 2FA
+// =======================
+// LOGIN 2FA COMPLETO DIDADPOL
+// =======================
 
-// ====== CONFIG 2FA EN MEMORIA ======
+const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcrypt');
 
-const OTP_TTL_MS = 15 * 60 * 1000;      // 15 minutos
-const PENDING_TTL_MS = 20 * 60 * 1000;  // ventana total para completar login
-const RESEND_COOLDOWN_MS = 60 * 1000;   // 60s entre reenvíos
+// ====== CONFIG 2FA ======
+const APP_2FA_SHARED_SECRET = 'DIDADPOL';
+const OTP_TTL_MS = 15 * 60 * 1000;      // 15 min
+const PENDING_TTL_MS = 20 * 60 * 1000;  // ventana total
+const RESEND_COOLDOWN_MS = 60 * 1000;   // 60 s entre reenvíos
 const MAX_ATTEMPTS = 5;
 
-// Mapa en memoria: tempSessionId -> objeto de pending
+// ====== MEMORIA TEMPORAL ======
 const pendingLogins = new Map();
 
-// Limpieza periódica
+// Limpieza periódica (cada 60 s)
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of pendingLogins.entries()) {
@@ -746,28 +752,26 @@ async function verifyOTP(code, hash) {
   return bcrypt.compare(code, hash || '');
 }
 
-// ====== LOGIN-INIT: valida user/pass y envía OTP por correo ======
-// Reutiliza tu pool y tu enviarCorreoBrevo(to, subject, html)
+// ==========================
+//  LOGIN-INIT: validar credenciales y enviar OTP
+// ==========================
 app.post('/api/login-init', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: 'Correo y contraseña requeridos' });
 
   try {
-    // 1) Obtén el usuario (SOLO lectura, no agregamos columnas)
     const r = await pool.query(
       'SELECT id, email, nombre, password_hash FROM users WHERE email = $1',
       [email]
     );
     if (!r.rows.length) return res.status(401).json({ error: 'Credenciales inválidas' });
-
     const user = r.rows[0];
 
-    // 2) Verifica contraseña
     const ok = await bcrypt.compare(password, user.password_hash || '');
     if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
 
-    // 3) Verifica cooldown (si hay sesión pendiente previa)
+    // Cooldown y limpieza
     let existing;
     for (const v of pendingLogins.values()) {
       if (v.userId === user.id) { existing = v; break; }
@@ -778,12 +782,11 @@ app.post('/api/login-init', async (req, res) => {
       return res.status(429).json({ error: `Espera ${faltan}s para reenviar código` });
     }
 
-    // 4) Genera y guarda OTP en memoria (hasheado)
+    // Generar OTP y guardar
     const code = genOTP();
     const codeHash = await hashOTP(code);
     const tempSessionId = uuidv4();
 
-    // invalida otras pendientes del mismo usuario
     for (const [k, v] of pendingLogins.entries()) {
       if (v.userId === user.id) pendingLogins.delete(k);
     }
@@ -799,16 +802,15 @@ app.post('/api/login-init', async (req, res) => {
       pendingExpiresAt: now + PENDING_TTL_MS
     });
 
-    // 5) Enviar correo por Brevo (tu misma función)
+    // Enviar correo (usa tu función Brevo)
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+      <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto;">
         <h2 style="color:#003366;margin-bottom:6px;">Código de verificación</h2>
         <p>Hola ${user.nombre || 'usuario'}, usa este código para completar tu ingreso a <strong>DIDADPOL</strong>:</p>
         <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:18px 0;">${code}</div>
         <p>Expira en <strong>15 minutos</strong>.</p>
-        <p style="color:#888;font-size:12px;margin-top:24px;">Si no solicitaste este acceso, ignora este correo.</p>
-      </div>
-    `;
+        <p style="color:#888;font-size:12px;">Si no solicitaste este acceso, ignora este correo.</p>
+      </div>`;
     await enviarCorreoBrevo(user.email, 'Tu código de verificación (15 min)', html);
 
     return res.json({
@@ -822,7 +824,9 @@ app.post('/api/login-init', async (req, res) => {
   }
 });
 
-// ====== OTP: verificar ======
+// ==========================
+//  OTP-VERIFY: validar código y generar ticket firmado
+// ==========================
 app.post('/api/otp/verify', async (req, res) => {
   const { temp_session_id, code } = req.body;
   if (!temp_session_id || !code)
@@ -836,9 +840,8 @@ app.post('/api/otp/verify', async (req, res) => {
     pendingLogins.delete(temp_session_id);
     return res.status(410).json({ error: 'La sesión temporal expiró, vuelve a iniciar sesión' });
   }
-  if (entry.otpExpiresAt <= now) {
+  if (entry.otpExpiresAt <= now)
     return res.status(410).json({ error: 'Código expirado, solicita uno nuevo' });
-  }
   if (entry.attempts >= MAX_ATTEMPTS) {
     pendingLogins.delete(temp_session_id);
     return res.status(423).json({ error: 'Demasiados intentos, inicia sesión de nuevo' });
@@ -850,23 +853,36 @@ app.post('/api/otp/verify', async (req, res) => {
     return res.status(400).json({ error: 'Código incorrecto', intentos: entry.attempts });
   }
 
-  // ✅ OTP correcto: genera tu JWT/sesión real
-  // Sustituye por tu lógica real (ej. jwt.sign(...))
-  const token = `jwt.fake.${entry.userId}.${Date.now()}`;
+  // ===== OTP correcto → generar ticket firmado (HMAC SHA256) =====
+  const user_id = entry.userId;
+  const nonce = uuidv4();
+  const ts = Math.floor(Date.now() / 1000);
+  const base = `${user_id}.${nonce}.${ts}`;
+  const sig = crypto.createHmac('sha256', APP_2FA_SHARED_SECRET).update(base).digest('hex');
 
-  // limpia
   pendingLogins.delete(temp_session_id);
 
-  return res.json({ token, mensaje: 'Autenticación completada' });
+  return res.json({
+    ok: true,
+    user_id,
+    nonce,
+    ts,
+    sig,
+    mensaje: 'OTP correcto, procede a /login-final en Laravel'
+  });
 });
 
-// ====== OTP: reenviar ======
+// ==========================
+//  OTP-RESEND: reenviar código
+// ==========================
 app.post('/api/otp/resend', async (req, res) => {
   const { temp_session_id } = req.body;
-  if (!temp_session_id) return res.status(400).json({ error: 'temp_session_id requerido' });
+  if (!temp_session_id)
+    return res.status(400).json({ error: 'temp_session_id requerido' });
 
   const entry = pendingLogins.get(temp_session_id);
-  if (!entry) return res.status(404).json({ error: 'Sesión temporal no encontrada o expirada' });
+  if (!entry)
+    return res.status(404).json({ error: 'Sesión temporal no encontrada o expirada' });
 
   const now = Date.now();
   if (entry.pendingExpiresAt <= now) {
@@ -878,7 +894,7 @@ app.post('/api/otp/resend', async (req, res) => {
     return res.status(429).json({ error: `Espera ${faltan}s para reenviar código` });
   }
 
-  // generar nuevo código y actualizar expiración
+  // Nuevo OTP
   const code = genOTP();
   entry.otpHash = await hashOTP(code);
   entry.otpExpiresAt = now + OTP_TTL_MS;
@@ -886,13 +902,12 @@ app.post('/api/otp/resend', async (req, res) => {
   entry.attempts = 0;
 
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+    <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto;">
       <h2 style="color:#003366;margin-bottom:6px;">Nuevo código de verificación</h2>
       <p>Código para completar tu ingreso a <strong>DIDADPOL</strong>:</p>
       <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:18px 0;">${code}</div>
       <p>Expira en <strong>15 minutos</strong>.</p>
-    </div>
-  `;
+    </div>`;
   try {
     await enviarCorreoBrevo(entry.email, 'Nuevo código de verificación (15 min)', html);
     return res.json({ mensaje: 'Código reenviado', otp_ttl_min: 15 });
@@ -901,6 +916,7 @@ app.post('/api/otp/resend', async (req, res) => {
     return res.status(500).json({ error: 'No se pudo reenviar el código' });
   }
 });
+
 
 
 // ✅ CRUD ROLES

@@ -7,11 +7,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use App\Models\User;
 
 class LoginController extends Controller
 {
+    /**
+     * Forzar 2FA desde el controlador (sin .env)
+     * Si está en true, el POST /login tradicional se bloquea
+     * y debes usar el flujo /api/login-init -> /api/otp/verify -> /login-final
+     */
+    private bool $force2fa = true;
+
+    /**
+     * Secreto compartido con tu API Node para firmar el ticket de finalización 2FA.
+     * Usa una cadena larga/aleatoria y pon la MISMA en Node.
+     */
+    private string $twoFASecret = 'DIDADPOL';
+
     /**
      * Mostrar formulario de login personalizado
      */
@@ -22,16 +34,15 @@ class LoginController extends Controller
 
     /**
      * Autenticar usuario con validaciones y registro en bitácora (BD)
-     * NOTA: si activas 2FA forzado, este método devuelve error para
-     * evitar que se "puentee" el 2FA por correo.
+     * Si $force2fa = true, bloquea el login tradicional para no puentear el 2FA.
      */
     public function login(Request $request)
     {
-        // --- OPCIONAL: Bloquear login tradicional cuando 2FA está activo ---
-        if (config('app.force_2fa_login', env('APP_FORCE_2FA_LOGIN', false))) {
-            return back()->withInput()->with('error', 'Debes iniciar sesión usando el 2FA (código enviado al correo).');
+        // --- Bloqueo del login tradicional si 2FA está forzado ---
+        if ($this->force2fa) {
+            return back()->withInput()->with('error', 'Debes iniciar sesión con verificación en dos pasos (revisa tu correo).');
         }
-        // -------------------------------------------------------------------
+        // ----------------------------------------------------------
 
         // 1) Validar campos requeridos
         $credentials = $request->validate([
@@ -44,16 +55,16 @@ class LoginController extends Controller
         $ip = $request->ip();
         $ua = $request->userAgent();
 
-        // 2) Buscar usuario (case-insensitive)
+        // 2) Buscar usuario (case-insensitive por si acaso)
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
-        // 2.1) Usuario no existe
+        // 2.1) Usuario no existe -> registrar intento fallido y responder genérico
         if (!$user) {
             $this->registrarIntentoEnBD($email, false, $ip, $ua, 'USUARIO_NO_EXISTE');
             return back()->withInput()->with('error', 'Correo o contraseña incorrectos.');
         }
 
-        // 2.2) Usuario INACTIVO
+        // 2.2) Si ya está INACTIVO -> registrar y bloquear
         if (strcasecmp($user->estado, 'INACTIVO') === 0) {
             $this->registrarIntentoEnBD($email, false, $ip, $ua, 'USUARIO_INACTIVO');
             return back()->withInput()->with('error', 'Tu cuenta está inactiva. Contacta al administrador.');
@@ -61,22 +72,26 @@ class LoginController extends Controller
 
         // 3) Verificar contraseña
         if (!Hash::check($password, $user->password)) {
+            // Registrar intento fallido: el SP incrementa contador y puede bloquear al 3er fallo
             $res = $this->registrarIntentoEnBD($email, false, $ip, $ua, 'PASSWORD_INCORRECTO');
             $status = $res['status'] ?? null;
             $intentos = $res['intentos'] ?? null;
 
             if ($status === 'blocked') {
+                // El SP ya puso estado='INACTIVO'
                 return back()->withInput()->with('error', 'Usuario bloqueado por intentos fallidos. Contacta al administrador.');
             }
 
+            // Mensaje con contador si está disponible
             $msg = 'Correo o contraseña incorrectos.';
             if (is_numeric($intentos)) {
                 $msg = "Contraseña incorrecta. Intento {$intentos} de 3.";
             }
+
             return back()->withInput()->with('error', $msg);
         }
 
-        // 4) Verificar rol
+        // 4) Verificar rol asignado (tu lógica original)
         $rol = DB::table('roles')
             ->join('role_user', 'roles.id', '=', 'role_user.role_id')
             ->where('role_user.user_id', $user->id)
@@ -91,11 +106,13 @@ class LoginController extends Controller
             return back()->withInput()->with('error', 'Acceso denegado. Tu rol está inactivo.');
         }
 
-        // 5) Éxito tradicional (solo si NO tienes 2FA forzado)
-        $this->registrarIntentoEnBD($email, true, $ip, $ua, null);
+        // 5) Éxito: registrar OK (resetea intentos en el SP) y autenticar
+        $this->registrarIntentoEnBD($email, true, $request->ip(), $request->userAgent(), null);
 
         Auth::login($user, $request->filled('remember'));
         $request->session()->regenerate();
+
+        // Guardar nombre del rol en sesión (tu lógica)
         session(['nombre_rol' => $rol->nombre]);
 
         return redirect()->intended('/home');
@@ -114,53 +131,50 @@ class LoginController extends Controller
     }
 
     /**
-     * Nuevo: Finalizar login después de OTP (2FA) validado en el backend Node.
-     * Espera: user_id, nonce, ts (timestamp en segundos) y sig (HMAC).
-     * La firma se calcula: HMAC_SHA256(user_id.nonce.ts, APP_2FA_SHARED_SECRET)
+     * NUEVO: Finalizar login después de que tu API Node valide OTP.
+     * Espera: user_id, nonce, ts (unix segundos), sig (HMAC SHA256) y remember opcional.
+     * La firma: HMAC_SHA256( user_id . "." . nonce . "." . ts , $twoFASecret )
      */
     public function finalizarLogin2FA(Request $request)
     {
         $request->validate([
             'user_id' => ['required', 'integer'],
             'nonce'   => ['required', 'string', 'min:8'],
-            'ts'      => ['required', 'integer'], // unix ts (segundos)
+            'ts'      => ['required', 'integer'], // unix timestamp (segundos)
             'sig'     => ['required', 'string', 'min:32'],
             'remember'=> ['nullable', 'boolean'],
         ]);
 
-        $userId = (int) $request->input('user_id');
-        $nonce  = $request->input('nonce');
-        $ts     = (int) $request->input('ts');
-        $sig    = $request->input('sig');
-        $remember = (bool) $request->boolean('remember');
+        $userId  = (int) $request->input('user_id');
+        $nonce   = $request->input('nonce');
+        $ts      = (int) $request->input('ts');
+        $sig     = $request->input('sig');
+        $remember= (bool) $request->boolean('remember');
 
-        // 1) Ventana de tiempo para el ticket de finalización (ej. 120s)
+        // 1) Ventana de tiempo para el ticket (2 minutos)
         $now = time();
         if (abs($now - $ts) > 120) {
             return back()->with('error', 'Token de verificación expirado. Intenta nuevamente.');
         }
 
-        // 2) Recalcular HMAC con secreto compartido
-        $secret = env('APP_2FA_SHARED_SECRET');
-        if (!$secret) {
-            return back()->with('error', 'Falta configuración de 2FA en el servidor.');
-        }
-
+        // 2) Recalcular HMAC con el secreto del controlador
         $base = "{$userId}.{$nonce}.{$ts}";
-        $calc = hash_hmac('sha256', $base, $secret);
+        $calc = hash_hmac('sha256', $base, $this->twoFASecret);
 
-        // Comparación timing-safe
         if (!hash_equals($calc, $sig)) {
             return back()->with('error', 'Token de verificación inválido.');
         }
 
-        // 3) Cargar usuario y verificar que esté activo y con rol
+        // 3) Cargar usuario y validar estado
         $user = User::find($userId);
-        if (!$user) return back()->with('error', 'Usuario no válido.');
+        if (!$user) {
+            return back()->with('error', 'Usuario no válido.');
+        }
         if (strcasecmp($user->estado, 'INACTIVO') === 0) {
             return back()->with('error', 'Tu cuenta está inactiva. Contacta al administrador.');
         }
 
+        // 4) Verificar rol activo
         $rol = DB::table('roles')
             ->join('role_user', 'roles.id', '=', 'role_user.role_id')
             ->where('role_user.user_id', $user->id)
@@ -171,7 +185,9 @@ class LoginController extends Controller
             return back()->with('error', 'Acceso denegado. Rol no asignado o inactivo.');
         }
 
-        // 4) Autenticar en Laravel
+        // 5) Registrar éxito en bitácora y autenticar sesión Laravel
+        $this->registrarIntentoEnBD($user->email, true, $request->ip(), $request->userAgent(), '2FA_OK');
+
         Auth::login($user, $remember);
         $request->session()->regenerate();
         session(['nombre_rol' => $rol->nombre]);

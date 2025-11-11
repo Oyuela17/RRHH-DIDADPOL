@@ -96,20 +96,10 @@ Route::get('/', function () {
 // Autenticación de Laravel
 Auth::routes();
 
-// ===============================
-// 🔐 RUTAS DE AUTENTICACIÓN
-// ===============================
+// Rutas de autenticación personalizadas
 Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('login', [LoginController::class, 'login']);
 Route::post('logout', [LoginController::class, 'logout'])->name('logout');
-
-// ===============================
-// 🧩 RUTAS DE VERIFICACIÓN EN DOS PASOS (2FA)
-// ===============================
-// Estas rutas las llama el modal SweetAlert2 del Blade (por AJAX)
-Route::post('/2fa/verify', [LoginController::class, 'verify2fa'])->name('2fa.verify');
-Route::post('/2fa/resend', [LoginController::class, 'resend2fa'])->name('2fa.resend');
-
 
 // Ruta para recuperación de contraseña
 Route::get('/password/reset', function () {

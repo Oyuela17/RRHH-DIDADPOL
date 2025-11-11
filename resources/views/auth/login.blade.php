@@ -90,6 +90,7 @@
   </div>
 </div>
 
+<!-- Script independiente (no anidar <script> dentro de otro) -->
 <script>
   function togglePassword(element) {
     const input = document.querySelector(element.getAttribute('toggle'));
@@ -99,20 +100,6 @@
       ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#555" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`
       : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#555" stroke-width="2"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.4 21.4 0 0 1 5.29-6.71"/><path d="M1 1l22 22"/></svg>`;
   }
-
-  @if (session('error'))
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    Swal.fire({
-      icon: 'error',
-      title: 'Acceso denegado',
-      text: '{{ session("error") }}',
-      confirmButtonColor: '#007bff'
-    });
-  });
-</script>
-@endif
-
 </script>
 
 </body>

@@ -12,16 +12,23 @@ use Illuminate\Support\Facades\Http;
 
 class LoginController extends Controller
 {
-    /**
-     * Mostrar formulario de login personalizado.
+    /** ======= Toggle 2FA ======= 
+     * 'off'  -> sin 2FA (login directo)
+     * 'mock' -> modal, código fijo 123456 (sin correos)
+     * 'email'-> 2FA real vía API Node
      */
+    private const TWO_FA_MODE      = 'mock';   // ← cámbialo a 'email' para producción
+    private const TWO_FA_TEST_CODE = '123456';
+    private const NODE_API_BASE    = 'https://rrhh-didadpol-1.onrender.com';
+    private const NODE_API_TIMEOUT = 15;
+
     public function showLoginForm()
     {
         return view('auth.login');
     }
 
     /**
-     * Paso 1: Validar credenciales y lanzar 2FA (NO autentica aún).
+     * Paso 1: Valida credenciales y lanza 2FA (NO autentica aún).
      */
     public function login(Request $request)
     {
@@ -37,7 +44,6 @@ class LoginController extends Controller
 
         // Buscar usuario
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
-
         if (!$user) {
             $this->registrarIntentoEnBD($email, false, $ip, $ua, 'USUARIO_NO_EXISTE');
             return back()->withInput()->with('error', 'Correo o contraseña incorrectos.');
@@ -80,26 +86,48 @@ class LoginController extends Controller
             return back()->withInput()->with('error', 'Acceso denegado. Tu rol está inactivo.');
         }
 
-        // ===== Iniciar 2FA con API Node (Render) =====
-        try {
-            $baseUrl    = 'https://rrhh-didadpol-1.onrender.com'; // URL fija de tu API Node
-            $timeout    = 15;
-            $adminToken = env('ADMIN_TOKEN');
+        /** ===== Switch 2FA ===== */
+        if (self::TWO_FA_MODE === 'off') {
+            // Login directo
+            $this->registrarIntentoEnBD($email, true, $ip, $ua, null);
+            Auth::login($user, $request->filled('remember'));
+            $request->session()->regenerate();
+            session(['nombre_rol' => $rol->nombre]);
+            return redirect()->intended('/home');
+        }
 
-            $http = Http::timeout($timeout);
-            if (!empty($adminToken)) {
-                $http = $http->withHeaders(['Authorization' => 'Bearer ' . $adminToken]);
+        if (self::TWO_FA_MODE === 'mock') {
+            // Modal simulado (sin enviar correo)
+            session([
+                '2fa.challenge_id' => 'mock',
+                '2fa.email'        => $email,
+                '2fa.user_id'      => $user->id,
+                '2fa.remember'     => $request->filled('remember'),
+                '2fa.rol_nombre'   => $rol->nombre,
+                '2fa.expires_in'   => 300,
+                '2fa.cooldown'     => 60,
+            ]);
+
+            return back()
+                ->with('pending_2fa', true)
+                ->with('masked_email', $this->maskEmail($email))
+                ->with('expires_in', 300)
+                ->with('cooldown', 60);
+        }
+
+        // ====== Modo 'email': iniciar 2FA real contra API Node ======
+        try {
+            $http = Http::timeout(self::NODE_API_TIMEOUT);
+            if (!empty(env('ADMIN_TOKEN'))) {
+                $http = $http->withHeaders(['Authorization' => 'Bearer '.env('ADMIN_TOKEN')]);
             }
 
-            $resp = $http->post($baseUrl . '/api/2fa/start', ['email' => $email]);
-
+            $resp = $http->post(self::NODE_API_BASE . '/api/2fa/start', ['email' => $email]);
             if (!$resp->successful()) {
                 return back()->with('error', 'No fue posible iniciar la verificación. Inténtalo de nuevo.');
             }
-
             $data = $resp->json();
 
-            // Guardar info de 2FA en sesión
             session([
                 '2fa.challenge_id' => $data['challenge_id'] ?? null,
                 '2fa.email'        => $email,
@@ -110,10 +138,9 @@ class LoginController extends Controller
                 '2fa.cooldown'     => $data['cooldown_resend'] ?? null,
             ]);
 
-            // Mostrar modal
             return back()
                 ->with('pending_2fa', true)
-                ->with('masked_email', $data['masked_email'] ?? null)
+                ->with('masked_email', $data['masked_email'] ?? $this->maskEmail($email))
                 ->with('expires_in', $data['expires_in'] ?? null)
                 ->with('cooldown', $data['cooldown_resend'] ?? null);
         } catch (\Throwable $e) {
@@ -124,7 +151,6 @@ class LoginController extends Controller
 
     /**
      * Paso 2: Verificar código 2FA (AJAX) y autenticar.
-     * Responde JSON para el modal.
      */
     public function verify2fa(Request $request)
     {
@@ -144,53 +170,58 @@ class LoginController extends Controller
                 return response()->json(['error' => 'Código inválido.'], 422);
             }
 
-            $baseUrl    = 'https://rrhh-didadpol-1.onrender.com';
-            $timeout    = 15;
-            $adminToken = env('ADMIN_TOKEN');
+            // ===== Mock: acepta 123456 sin API =====
+            if (self::TWO_FA_MODE === 'mock') {
+                if ($code !== self::TWO_FA_TEST_CODE) {
+                    return response()->json(['error' => 'Código inválido (modo prueba).'], 422);
+                }
+                $user = User::find($userId);
+                if (!$user) return response()->json(['error' => 'Usuario no encontrado.'], 404);
 
-            $http = Http::timeout($timeout);
-            if (!empty($adminToken)) {
-                $http = $http->withHeaders(['Authorization' => 'Bearer ' . $adminToken]);
+                $this->registrarIntentoEnBD($email, true, $request->ip(), $request->userAgent(), null);
+                Auth::login($user, $remember);
+                $request->session()->regenerate();
+                session(['nombre_rol' => $rolNombre]);
+
+                session()->forget([
+                    '2fa.challenge_id','2fa.email','2fa.user_id',
+                    '2fa.remember','2fa.rol_nombre','2fa.expires_in','2fa.cooldown',
+                ]);
+
+                return response()->json(['ok' => true, 'redirect' => url('/home')]);
             }
 
-            $resp = $http->post($baseUrl . '/api/2fa/verify', [
+            // ===== Modo 'email': verificar con API Node =====
+            $http = Http::timeout(self::NODE_API_TIMEOUT);
+            if (!empty(env('ADMIN_TOKEN'))) {
+                $http = $http->withHeaders(['Authorization' => 'Bearer '.env('ADMIN_TOKEN')]);
+            }
+
+            $resp = $http->post(self::NODE_API_BASE . '/api/2fa/verify', [
                 'challenge_id' => $challengeId,
                 'code'         => $code,
             ]);
-
             $data = $resp->json();
 
             if (!$resp->successful() || empty($data['ok'])) {
-                // Propaga mensaje del API si existe
                 $msg = $data['error'] ?? 'Código inválido o expirado.';
                 return response()->json(['error' => $msg], $resp->status() ?: 400);
             }
 
-            // Éxito ⇒ autenticar definitivamente
             $user = User::find($userId);
-            if (!$user) {
-                return response()->json(['error' => 'Usuario no encontrado.'], 404);
-            }
+            if (!$user) return response()->json(['error' => 'Usuario no encontrado.'], 404);
 
-            // Registrar intento OK en bitácora
             $this->registrarIntentoEnBD($email, true, $request->ip(), $request->userAgent(), null);
-
             Auth::login($user, $remember);
             $request->session()->regenerate();
-
-            // Guardar nombre del rol en sesión
             session(['nombre_rol' => $rolNombre]);
 
-            // Limpiar llaves 2FA
             session()->forget([
-                '2fa.challenge_id', '2fa.email', '2fa.user_id',
-                '2fa.remember', '2fa.rol_nombre', '2fa.expires_in', '2fa.cooldown',
+                '2fa.challenge_id','2fa.email','2fa.user_id',
+                '2fa.remember','2fa.rol_nombre','2fa.expires_in','2fa.cooldown',
             ]);
 
-            return response()->json([
-                'ok'       => true,
-                'redirect' => url('/home'),
-            ]);
+            return response()->json(['ok' => true, 'redirect' => url('/home')]);
         } catch (\Throwable $e) {
             \Log::error('2FA verify error: ' . $e->getMessage());
             return response()->json(['error' => 'Error al verificar.'], 500);
@@ -198,7 +229,7 @@ class LoginController extends Controller
     }
 
     /**
-     * Reenviar código 2FA (AJAX). Responde JSON.
+     * Reenviar código 2FA (AJAX).
      */
     public function resend2fa(Request $request)
     {
@@ -208,19 +239,20 @@ class LoginController extends Controller
                 return response()->json(['error' => 'Sesión de verificación no encontrada.'], 409);
             }
 
-            $baseUrl    = 'https://rrhh-didadpol-1.onrender.com';
-            $timeout    = 15;
-            $adminToken = env('ADMIN_TOKEN');
-
-            $http = Http::timeout($timeout);
-            if (!empty($adminToken)) {
-                $http = $http->withHeaders(['Authorization' => 'Bearer ' . $adminToken]);
+            // Mock: simula reenvío
+            if (self::TWO_FA_MODE === 'mock') {
+                return response()->json(['mensaje' => 'Código reenviado (simulado)', 'cooldown' => 60]);
             }
 
-            $resp = $http->post($baseUrl . '/api/2fa/resend', [
+            // Modo 'email': API Node
+            $http = Http::timeout(self::NODE_API_TIMEOUT);
+            if (!empty(env('ADMIN_TOKEN'))) {
+                $http = $http->withHeaders(['Authorization' => 'Bearer '.env('ADMIN_TOKEN')]);
+            }
+
+            $resp = $http->post(self::NODE_API_BASE . '/api/2fa/resend', [
                 'challenge_id' => $challengeId,
             ]);
-
             $data = $resp->json();
 
             if (!$resp->successful()) {
@@ -228,9 +260,8 @@ class LoginController extends Controller
                 return response()->json(['error' => $msg], $resp->status() ?: 400);
             }
 
-            // Actualiza cooldown si el API lo devuelve
             if (isset($data['cooldown_resend'])) {
-                session(['2fa.cooldown' => (int) $data['cooldown_resend']]);
+                session(['2fa.cooldown' => (int)$data['cooldown_resend']]);
             }
 
             return response()->json([
@@ -243,9 +274,6 @@ class LoginController extends Controller
         }
     }
 
-    /**
-     * Cerrar sesión.
-     */
     public function logout(Request $request)
     {
         Auth::logout();
@@ -254,10 +282,6 @@ class LoginController extends Controller
         return redirect()->route('login');
     }
 
-    /**
-     * Invoca la función SQL public.login_registrar_intento(...)
-     * Devuelve el JSON decodificado o [] si algo falla.
-     */
     private function registrarIntentoEnBD(string $email, bool $exito, string $ip, string $ua, ?string $motivo): array
     {
         try {
@@ -273,7 +297,13 @@ class LoginController extends Controller
         } catch (\Throwable $e) {
             \Log::warning('login_registrar_intento error: ' . $e->getMessage());
         }
-
         return [];
+    }
+
+    /** Enmascara correo para el modal */
+    private function maskEmail(string $email): string
+    {
+        [$u, $d] = explode('@', $email);
+        return substr($u, 0, 2) . str_repeat('*', max(strlen($u)-2, 0)) . '@' . $d;
     }
 }

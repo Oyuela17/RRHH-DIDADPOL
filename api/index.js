@@ -625,8 +625,9 @@ app.post('/api/registrar-usuario', async (req, res) => {
 });
 
 
-//  DEFINIR CONTRASEÑA 
-
+// ==========================
+// DEFINIR CONTRASEÑA
+// ==========================
 app.post('/api/definir-contrasena', async (req, res) => {
   const { email, token, password } = req.body;
 
@@ -635,7 +636,7 @@ app.post('/api/definir-contrasena', async (req, res) => {
   }
 
   try {
-    // Verificar que el usuario existe
+    // Verificar que el usuario exista
     const usuario = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (usuario.rows.length === 0) {
       return res.status(404).json({ error: 'Correo no registrado' });
@@ -653,11 +654,10 @@ app.post('/api/definir-contrasena', async (req, res) => {
       return res.status(400).json({ error: 'Token inválido o expirado' });
     }
 
-    // Encriptar contraseña y preparar fechas
+    // Encriptar contraseña y actualizar usuario
     const hashedPassword = await bcrypt.hash(password, 10);
     const ahora = new Date().toISOString();
 
-    // Actualizar contraseña, email verificado y updated_at
     await pool.query(`
       UPDATE users 
       SET password = $1, email_verified_at = $2, updated_at = $2 
@@ -676,7 +676,10 @@ app.post('/api/definir-contrasena', async (req, res) => {
 });
 
 
+
+// ==========================
 // RECUPERAR CONTRASEÑA
+// ==========================
 app.post('/api/recuperar-contrasena', async (req, res) => {
   const { email } = req.body;
 
@@ -685,6 +688,7 @@ app.post('/api/recuperar-contrasena', async (req, res) => {
   }
 
   try {
+    // Verificar que el usuario exista
     const usuario = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (usuario.rows.length === 0) {
       return res.status(404).json({ error: 'Correo no encontrado' });
@@ -692,46 +696,60 @@ app.post('/api/recuperar-contrasena', async (req, res) => {
 
     const userId = usuario.rows[0].id;
     const token = uuidv4();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // Expira en 1 hora
 
-    // Limpiar tokens anteriores
+    // Eliminar tokens anteriores
     await pool.query('DELETE FROM password_tokens WHERE user_id = $1', [userId]);
 
     // Insertar nuevo token
-    await pool.query(
-      'INSERT INTO password_tokens (user_id, token, expires_at, created_at) VALUES ($1, $2, $3, NOW())',
-      [userId, token, expiresAt]
+    await pool.query(`
+      INSERT INTO password_tokens (user_id, token, expires_at, created_at)
+      VALUES ($1, $2, $3, NOW())
+    `, [userId, token, expiresAt]);
+
+    // ✅ CORREGIDO: dominio correcto de tu FRONTEND (Laravel Cloud)
+    const resetUrl = `https://rrhh-didadpol-main-khmtlb.laravel.cloud/definir-contrasena?token=${token}&email=${encodeURIComponent(email)}`;
+
+    // Enviar correo (Brevo API)
+    await enviarCorreoBrevo(
+      email,
+      'Restablecer tu contraseña',
+      `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+          <h2 style="color: #003366;">Solicitud para restablecer contraseña</h2>
+          <p>Hola, hemos recibido una solicitud para restablecer tu contraseña en el sistema de <strong>DIDADPOL</strong>.</p>
+          <p>Haz clic en el siguiente botón para definir una nueva contraseña:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" style="background-color: #ff6b35; padding: 12px 25px; color: white; border-radius: 6px; text-decoration: none;">
+              Definir nueva contraseña
+            </a>
+          </div>
+          <p>Este enlace expirará en 1 hora. Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
+          <p style="color: #888; font-size: 12px;">© ${new Date().getFullYear()} DIDADPOL · Todos los derechos reservados</p>
+        </div>
+      `
     );
 
-    // Generar enlace
-    const resetUrl = `https://rrhh-didadpol-1.onrender.com/definir-contrasena?token=${token}&email=${encodeURIComponent(email)}`;
-
-   // Enviar correo (Brevo API HTTPS)
-await enviarCorreoBrevo(
-  email,
-  'Restablecer tu contraseña',
-  `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-      <h2 style="color: #003366;">Solicitud para restablecer contraseña</h2>
-      <p>Hola, hemos recibido una solicitud para restablecer tu contraseña en el sistema de <strong>DIDADPOL</strong>.</p>
-      <p>Haz clic en el siguiente botón para definir una nueva contraseña:</p>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${resetUrl}" style="background-color: #ff6b35; padding: 12px 25px; color: white; border-radius: 6px; text-decoration: none;">Definir nueva contraseña</a>
-      </div>
-      <p>Este enlace expirará en 1 hora. Si no solicitaste este cambio, puedes ignorar este mensaje.</p>
-      <p style="color: #888; font-size: 12px;">© ${new Date().getFullYear()} DIDADPOL · Todos los derechos reservados</p>
-    </div>
-  `
-);
-
-res.json({ mensaje: 'Enlace de restablecimiento enviado' });
-
+    res.json({ mensaje: 'Enlace de restablecimiento enviado' });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Error en recuperar-contrasena:', error);
     res.status(500).json({ error: 'Error al enviar enlace', detalle: error.message });
   }
 });
+
+
+
+// ==========================
+// PARCHE: redirección de seguridad
+// (por si alguien aún abre el enlace viejo de la API)
+// ==========================
+app.get('/definir-contrasena', (req, res) => {
+  const query = req.originalUrl.split('?')[1] || '';
+  const redirectUrl = `https://rrhh-didadpol-main-khmtlb.laravel.cloud/definir-contrasena${query ? '?' + query : ''}`;
+  res.redirect(301, redirectUrl);
+});
+
 
 // ============================
 // 🔐 VERIFICACIÓN EN DOS PASOS

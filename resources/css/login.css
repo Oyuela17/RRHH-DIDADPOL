@@ -1,29 +1,26 @@
-/* Reset básico */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* =====================================================
+   RESET / BASE
+===================================================== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-body, html {
+html, body {
   height: 100%;
   font-family: 'Poppins', sans-serif;
   background: linear-gradient(135deg, #005796, #8d99ae);
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
 }
 
 /* Contenedor principal */
 .login-wrapper {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-/* Tarjeta principal */
+/* =====================================================
+   TARJETA LOGIN (IZQ: FORM / DER: IMAGEN)
+===================================================== */
 .card-login {
   display: flex;
   width: 800px;
@@ -68,18 +65,10 @@ body, html {
   color: #d1d1d1;
 }
 
-.subtitle a {
-  color: #f4a300;
-  text-decoration: none;
-}
+.subtitle a { color: #f4a300; text-decoration: none; }
+.subtitle a:hover { text-decoration: underline; }
 
-.subtitle a:hover {
-  text-decoration: underline;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
+.form-group { margin-bottom: 20px; }
 
 input[type="email"],
 input[type="password"] {
@@ -92,27 +81,16 @@ input[type="password"] {
   font-size: 14px;
   transition: 0.3s ease;
 }
-
 input[type="email"]:focus,
 input[type="password"]:focus {
   outline: none;
   border: 1px solid #f4a300;
   box-shadow: 0 0 10px rgba(244, 163, 0, 0.5);
 }
+input::placeholder { color: #aaa; }
 
-input::placeholder {
-  color: #aaa;
-}
-
-.remember-me {
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-}
-
-.remember-me input {
-  margin-right: 10px;
-}
+.remember-me { display: flex; align-items: center; font-size: 14px; }
+.remember-me input { margin-right: 10px; }
 
 /* Botón login */
 .btn-login {
@@ -128,7 +106,6 @@ input::placeholder {
   overflow: hidden;
   transition: all 0.4s ease;
 }
-
 .btn-login::after {
   content: '';
   position: absolute;
@@ -141,11 +118,7 @@ input::placeholder {
   transition: all 0.7s ease;
   pointer-events: none;
 }
-
-.btn-login:hover::after {
-  left: 150%;
-}
-
+.btn-login:hover::after { left: 150%; }
 .btn-login:hover {
   background: linear-gradient(135deg, #f1bb4f, #f4a300);
   transform: scale(1.05);
@@ -161,11 +134,7 @@ input::placeholder {
   text-decoration: none;
   transition: 0.3s;
 }
-
-.forgot-password:hover {
-  text-decoration: underline;
-  color: #f1bb4f;
-}
+.forgot-password:hover { text-decoration: underline; color: #f1bb4f; }
 
 /* Lado derecho (Imagen fondo) */
 .card-right {
@@ -173,53 +142,6 @@ input::placeholder {
   background: url('https://images.unsplash.com/photo-1623872447854-97e7fa05afd0?fit=crop&w=870&q=80') no-repeat center center;
   background-size: cover;
   animation: fadeInRight 1.5s ease;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .card-login {
-    flex-direction: column;
-    height: auto;
-    width: 90%;
-  }
-
-  .card-right {
-    height: 250px;
-  }
-}
-
-/* Animaciones */
-@keyframes cardEntrance {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes fadeInLeft {
-  0% {
-    opacity: 0;
-    transform: translateX(-50px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes fadeInRight {
-  0% {
-    opacity: 0;
-    transform: translateX(50px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 
 .login-right {
@@ -233,288 +155,122 @@ input::placeholder {
   height: 100%;
 }
 
-.logo-panel {
-  max-width: 280px;
-  height: auto;
-  display: block;
+.logo-panel { max-width: 280px; height: auto; display: block; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .card-login { flex-direction: column; height: auto; width: 90%; }
+  .card-right { height: 250px; }
 }
 
-.login-container {
-  display: flex;
-  height: 100vh; /* Asegura que todo el login use la pantalla completa */
-
-}
-
+/* =====================================================
+   UTILIDADES / MODALES GENERALES
+===================================================== */
 .alert-modal {
   position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
+  inset: 0;
   background-color: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px); /* opcional: efecto vidrio */
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
   z-index: 9999;
 }
-
 .alert-contenido {
   background-color: #ffffff;
   padding: 20px 30px;
   border-radius: 10px;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
-  max-width: 400px;
-  width: 90%;
-  position: relative;
-  text-align: center;
+  max-width: 400px; width: 90%;
+  position: relative; text-align: center;
   border-left: 5px solid #3498db;
 }
-
-.icono-alerta {
-  font-size: 30px;
-  color: #3498db;
-  margin-bottom: 10px;
-}
-
-.texto-alerta {
-  font-size: 16px;
-  color: #333;
-}
-
+.icono-alerta { font-size: 30px; color: #3498db; margin-bottom: 10px; }
+.texto-alerta { font-size: 16px; color: #333; }
 .cerrar-alerta {
-  position: absolute;
-  top: 10px;
-  right: 15px;
-  background: none;
-  border: none;
-  font-size: 18px;
-  color: #999;
-  cursor: pointer;
+  position: absolute; top: 10px; right: 15px;
+  background: none; border: none; font-size: 18px;
+  color: #999; cursor: pointer;
 }
 
-.password-wrapper {
-  position: relative;
-}
-
+/* Toggle de contraseña */
+.password-wrapper { position: relative; }
 .password-wrapper input[type="password"],
 .password-wrapper input[type="text"] {
-  width: 100%;
-  padding: 12px 14px;
-  font-size: 15px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  box-sizing: border-box;
+  width: 100%; padding: 12px 14px; font-size: 15px;
+  border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;
 }
-
 .toggle-password {
-  position: absolute;
-  top: 50%;
-  right: 12px;
-  transform: translateY(-50%);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
+.toggle-password svg { width: 20px; height: 20px; pointer-events: none; }
 
-.toggle-password svg {
-  width: 20px;
-  height: 20px;
-  pointer-events: none;
-}
-
+/* Modal error genérico */
 .modal-error {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  background-color: rgba(0,0,0,0.4);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex; justify-content: center; align-items: center;
   z-index: 9999;
 }
-
 .modal-contenido {
-  background: white;
-  padding: 30px 40px;
-  border-radius: 10px;
-  text-align: center;
-  font-weight: bold;
+  background: white; padding: 30px 40px; border-radius: 10px;
+  text-align: center; font-weight: bold; position: relative;
   animation: scaleIn 0.3s ease-in-out;
-  position: relative;
 }
-
 .modal-contenido .cerrar-modal {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
+  position: absolute; top: 8px; right: 12px; background: none; border: none;
+  font-size: 20px; cursor: pointer;
 }
+.modal-contenido .icono-error { font-size: 32px; color: red; margin-bottom: 8px; }
+.modal-contenido .mensaje-error { color: red; font-size: 15px; margin-top: 8px; }
 
-.modal-contenido .icono-error {
-  font-size: 32px;
-  color: red;
-  margin-bottom: 8px;
-}
-
-.modal-contenido .mensaje-error {
-  color: red;
-  font-size: 15px;
-  margin-top: 8px;
-}
-
-@keyframes scaleIn {
-  from { transform: scale(0.8); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
-}
-
-/* ===== OTP modal look (glass + limpio) ===== */
+/* =====================================================
+   MODAL 2FA (SWEETALERT) — CENTRADO Y RESPONSIVO
+===================================================== */
+/* Popup con efecto glass */
 .otp-popup {
   border-radius: 20px !important;
   padding: 0 !important;
   background: rgba(255,255,255,0.88) !important;
   backdrop-filter: blur(10px);
   box-shadow: 0 20px 60px rgba(0,0,0,0.18);
-}
-
-.swal2-html-container { margin: 0 !important; }
-
-.otp-wrapper {
-  padding: 28px 28px 22px;
-  min-width: 360px;
-  max-width: 420px;
-}
-
-.otp-head {
-  text-align: center;
-  margin-bottom: 14px;
-}
-
-.otp-logo {
-  width: 60px; height: 60px; object-fit: contain;
-  border-radius: 12px;
-  margin-bottom: 10px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-}
-
-.otp-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #0b2347;
-}
-
-.otp-sub {
-  font-size: 14px;
-  color: #53627a;
-  margin-top: 2px;
-}
-
-.otp-inputs {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
-  margin: 16px 0 8px;
-}
-
-.otp-box {
-  height: 48px;
-  border-radius: 12px;
-  border: 1.5px solid #d8deea;
-  text-align: center;
-  font-size: 20px;
-  outline: none;
-  transition: all .15s ease-in-out;
-  background: #fff;
-}
-.otp-box:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 4px rgba(13,110,253,0.12);
-}
-
-.otp-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 6px;
-  flex-wrap: wrap;
-}
-
-.otp-expira {
-  font-size: 13px;
-  color: #65748b;
-  background: #eef3ff;
-  padding: 6px 10px;
-  border-radius: 999px;
-}
-
-.btn-resend {
-  border: 0;
-  background: #ebeef5;
-  color: #2d3b55;
-  font-size: 13px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: filter .15s ease-in-out;
-}
-.btn-resend:hover { filter: brightness(0.95); }
-.btn-resend:disabled { opacity: .6; cursor: not-allowed; }
-
-.resend-badge {
-  font-size: 12px;
-  color: #475569;
-}
-
-.btn-primary-solid {
-  border-radius: 12px !important;
-  padding: 10px 16px !important;
-  font-weight: 600 !important;
-}
-
-/* Dark mode friendly */
-@media (prefers-color-scheme: dark) {
-  .otp-popup { background: rgba(21,27,36,0.88) !important; }
-  .otp-title { color: #e8eefc; }
-  .otp-sub { color: #9fb0c9; }
-  .otp-box { background:#0f1722; color:#e5e7eb; border-color:#334155; }
-  .otp-box:focus { box-shadow: 0 0 0 4px rgba(59,130,246,0.25); border-color:#60a5fa; }
-  .otp-expira { background:#1e293b; color:#cbd5e1; }
-  .btn-resend { background:#1f2937; color:#e5e7eb; }
-  .resend-badge { color:#cbd5e1; }
-}
-
-/* ==== Fix: evitar scroll horizontal dentro del modal ==== */
-.otp-popup { 
-  width: min(92vw, 520px) !important;   /* modal responsivo */
+  width: min(92vw, 520px) !important;   /* modal responsivo y centrado */
   max-width: 520px !important;
-  overflow: visible !important;         /* que el contenido no recorte sombras */
+  overflow: visible !important;
 }
+/* Contenedor interno de SweetAlert */
 .swal2-html-container {
-  overflow-x: hidden !important;        /* quita la barra horizontal */
+  margin: 0 !important;
   padding: 0 !important;
+  overflow-x: hidden !important;        /* sin barra horizontal */
 }
 
-/* Ajustes del wrapper para no forzar ancho mínimo */
+/* Wrapper del contenido del modal */
 .otp-wrapper {
   width: 100%;
-  min-width: 0 !important;             /* evita desbordes por min-width */
+  min-width: 0 !important;
   padding: 28px 28px 22px;
   box-sizing: border-box;
+  text-align: center;                    /* centra todo el contenido */
 }
 
-/* Grid de casillas: tamaño fluido y centrado */
+/* Encabezado */
+.otp-head { text-align: center; margin-bottom: 14px; }
+.otp-logo {
+  width: 60px; height: 60px; object-fit: contain;
+  border-radius: 12px; margin-bottom: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+.otp-title { font-size: 20px; font-weight: 700; color: #0b2347; }
+.otp-sub   { font-size: 14px; color: #53627a; margin-top: 2px; }
+
+/* Casillas (OTP) centradas */
 .otp-inputs {
   display: grid;
-  grid-template-columns: repeat(6, minmax(40px, 56px)); /* máximo 56px, mínimo 40px */
-  justify-content: center;               /* centra el grupo */
+  grid-template-columns: repeat(6, minmax(40px, 56px));
+  justify-content: center;    /* centra el grupo */
   gap: 10px;
-  margin: 16px 0 8px;
+  margin: 16px auto 8px;
 }
-
-/* Casillas: que no crezcan más allá del grid */
 .otp-box {
   width: 100%;
   max-width: 56px;
@@ -527,15 +283,64 @@ input::placeholder {
   outline: none;
   transition: all .15s ease-in-out;
 }
-
-/* Meta (expira + reenviar) que no empuje el ancho */
-.otp-meta {
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
+.otp-box:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 4px rgba(13,110,253,0.12);
 }
 
-/* Afinar en pantallas pequeñas */
+/* Meta (expira + reenviar) */
+.otp-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.otp-expira {
+  font-size: 13px;
+  color: #65748b;
+  background: #eef3ff;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+.btn-resend {
+  border: 0;
+  background: #ebeef5;
+  color: #2d3b55;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: filter .15s ease-in-out;
+}
+.btn-resend:hover { filter: brightness(0.95); }
+.btn-resend:disabled { opacity: .6; cursor: not-allowed; }
+.resend-badge { font-size: 12px; color: #475569; }
+
+/* Botón confirmar del modal */
+.btn-primary-solid {
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Dark mode friendly */
+@media (prefers-color-scheme: dark) {
+  .otp-popup { background: rgba(21,27,36,0.88) !important; }
+  .otp-title { color: #e8eefc; }
+  .otp-sub   { color: #9fb0c9; }
+  .otp-box   { background:#0f1722; color:#e5e7eb; border-color:#334155; }
+  .otp-box:focus {
+    box-shadow: 0 0 0 4px rgba(59,130,246,0.25);
+    border-color:#60a5fa;
+  }
+  .otp-expira { background:#1e293b; color:#cbd5e1; }
+  .btn-resend { background:#1f2937; color:#e5e7eb; }
+  .resend-badge { color:#cbd5e1; }
+}
+
+/* Ajustes móviles para casillas */
 @media (max-width: 420px) {
   .otp-inputs {
     grid-template-columns: repeat(6, minmax(34px, 48px));
@@ -544,3 +349,22 @@ input::placeholder {
   .otp-box { height: 44px; font-size: 18px; }
 }
 
+/* =====================================================
+   ANIMACIONES
+===================================================== */
+@keyframes cardEntrance {
+  0%   { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+@keyframes fadeInLeft {
+  0%   { opacity: 0; transform: translateX(-50px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeInRight {
+  0%   { opacity: 0; transform: translateX(50px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes scaleIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}

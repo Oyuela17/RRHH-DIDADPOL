@@ -19,6 +19,24 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ===== Requiere (agregar junto a tus const ...) =====
+const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
+
+// ===== Middlewares (después de tus app.use(cors/json/urlencoded)) =====
+app.use(helmet());
+app.use(cookieParser());
+
+// Rate limit básico para rutas sensibles (login, 2FA, recuperación)
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 min
+  max: 100,                 // 100 req por IP/ventana
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use(['/api/2fa/start','/api/2fa/verify','/api/2fa/resend','/api/recuperar-contrasena'], authLimiter);
+
 // =========================
 // 🗄️ PostgreSQL (Render)
 // =========================
@@ -714,6 +732,139 @@ res.json({ mensaje: 'Enlace de restablecimiento enviado' });
     res.status(500).json({ error: 'Error al enviar enlace', detalle: error.message });
   }
 });
+
+// ============================
+// 🔐 VERIFICACIÓN EN DOS PASOS
+// ============================
+
+const challenges = {}; // memoria temporal: { challengeId: { email, codeHash, expiresAt, attempts, resendCount, lastSentAt } }
+const COOLDOWN_SECONDS = 60;
+const EXPIRES_MINUTES = 5;
+const MAX_ATTEMPTS = 5;
+
+// Funciones auxiliares
+const sha256 = (txt) => crypto.createHash('sha256').update(txt).digest('hex');
+const generate6 = () => String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+const maskEmail = (email) => {
+  const [user, domain] = email.split('@');
+  return `${user.slice(0, 2)}${'*'.repeat(Math.max(user.length - 2, 0))}@${domain}`;
+};
+
+// ============================
+// 1️⃣ Iniciar challenge (enviar código)
+// ============================
+app.post('/api/2fa/start', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Correo requerido' });
+
+  try {
+    // 🔹 Aquí puedes validar que el usuario exista con tu pool.query (si lo deseas)
+    // const user = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    // if (user.rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const code = generate6();
+    const codeHash = sha256(code);
+    const challengeId = uuidv4();
+    const now = Date.now();
+    const expiresAt = now + EXPIRES_MINUTES * 60 * 1000;
+
+    challenges[challengeId] = {
+      email,
+      codeHash,
+      expiresAt,
+      attempts: 0,
+      resendCount: 0,
+      lastSentAt: now
+    };
+
+    // ✉️ Enviar correo
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
+        <h2 style="color:#003366;">Código de verificación</h2>
+        <p>Tu código para ingresar a <strong>DIDADPOL</strong> es:</p>
+        <div style="font-size:28px;letter-spacing:6px;font-weight:bold;margin:20px 0;">${code}</div>
+        <p>El código expira en ${EXPIRES_MINUTES} minutos.</p>
+      </div>
+    `;
+    await enviarCorreoBrevo(email, 'Código de verificación (2FA)', html);
+
+    return res.status(202).json({
+      challenge_id: challengeId,
+      masked_email: maskEmail(email),
+      expires_in: EXPIRES_MINUTES * 60,
+      cooldown_resend: COOLDOWN_SECONDS
+    });
+  } catch (err) {
+    console.error('❌ Error /2fa/start:', err);
+    return res.status(500).json({ error: 'Error al iniciar verificación' });
+  }
+});
+
+// ============================
+// 2️⃣ Reenviar código (cooldown)
+// ============================
+app.post('/api/2fa/resend', async (req, res) => {
+  const { challenge_id } = req.body;
+  const ch = challenges[challenge_id];
+  if (!ch) return res.status(404).json({ error: 'Challenge no encontrado' });
+
+  const now = Date.now();
+  if (now > ch.expiresAt) return res.status(400).json({ error: 'Challenge expirado' });
+
+  const diff = Math.floor((now - ch.lastSentAt) / 1000);
+  if (diff < COOLDOWN_SECONDS) {
+    return res.status(429).json({ error: 'Debes esperar antes de reenviar', retry_in: COOLDOWN_SECONDS - diff });
+  }
+
+  try {
+    const code = generate6();
+    ch.codeHash = sha256(code);
+    ch.resendCount += 1;
+    ch.lastSentAt = now;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;">
+        <h2 style="color:#003366;">Nuevo código 2FA</h2>
+        <p>Tu nuevo código de verificación es:</p>
+        <div style="font-size:28px;letter-spacing:6px;font-weight:bold;margin:20px 0;">${code}</div>
+        <p>Este challenge expira en ${Math.floor((ch.expiresAt - now) / 60000)} minutos.</p>
+      </div>
+    `;
+    await enviarCorreoBrevo(ch.email, 'Reenvío de código (2FA)', html);
+
+    res.json({ mensaje: 'Código reenviado', cooldown_resend: COOLDOWN_SECONDS });
+  } catch (err) {
+    console.error('❌ Error /2fa/resend:', err);
+    res.status(500).json({ error: 'Error al reenviar código' });
+  }
+});
+
+// ============================
+// 3️⃣ Verificar código
+// ============================
+app.post('/api/2fa/verify', async (req, res) => {
+  const { challenge_id, code } = req.body;
+  const ch = challenges[challenge_id];
+  if (!ch) return res.status(404).json({ error: 'Challenge no encontrado' });
+
+  const now = Date.now();
+  if (now > ch.expiresAt) return res.status(400).json({ error: 'Challenge expirado' });
+  if (ch.attempts >= MAX_ATTEMPTS) return res.status(403).json({ error: 'Demasiados intentos fallidos' });
+
+  ch.attempts += 1;
+
+  const inputHash = sha256(code.trim());
+  if (inputHash !== ch.codeHash) {
+    return res.status(401).json({ error: 'Código incorrecto', attempts_left: MAX_ATTEMPTS - ch.attempts });
+  }
+
+  // ✅ Código correcto
+  delete challenges[challenge_id]; // eliminar challenge
+
+  // Aquí podrías emitir token o confirmar login real
+  return res.json({ ok: true, mensaje: 'Verificación exitosa' });
+});
+
 
 // ✅ CRUD ROLES
 

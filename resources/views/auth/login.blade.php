@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   @vite(['resources/css/login.css', 'resources/js/app.js'])
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -90,7 +91,7 @@
   </div>
 </div>
 
-<!-- Script independiente (no anidar <script> dentro de otro) -->
+<!-- Script independiente -->
 <script>
   function togglePassword(element) {
     const input = document.querySelector(element.getAttribute('toggle'));

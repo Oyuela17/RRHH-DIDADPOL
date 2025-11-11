@@ -704,7 +704,7 @@ app.post('/api/recuperar-contrasena', async (req, res) => {
     );
 
     // Generar enlace
-    const link = `https://rrhh-didadpol-1.onrender.com/definir-contrasena?token=${token}&email=${correoInstitucional}`;
+    const resetUrl = `https://rrhh-didadpol-1.onrender.com/definir-contrasena?token=${token}&email=${encodeURIComponent(email)}`;
 
    // Enviar correo (Brevo API HTTPS)
 await enviarCorreoBrevo(

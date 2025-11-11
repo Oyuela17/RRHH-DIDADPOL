@@ -719,11 +719,6 @@ res.json({ mensaje: 'Enlace de restablecimiento enviado' });
 // LOGIN 2FA COMPLETO DIDADPOL (drop-in seguro)
 // =======================
 
-// --- IMPORTS (elimina estas 3 líneas si YA las tienes arriba) ---
-const crypto = require('crypto');
-const { v4: uuidv4 } = require('uuid');
-const bcrypt = require('bcrypt');
-
 // Evita montar las rutas 2FA más de una vez (útil con hot-reload o requires múltiples)
 if (!app.locals._didadpol2faMounted) {
   app.locals._didadpol2faMounted = true;

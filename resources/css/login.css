@@ -370,5 +370,119 @@ input::placeholder {
   to   { transform: scale(1); opacity: 1; }
 }
 
+/* ===== OTP modal look (glass + limpio) ===== */
+.otp-popup {
+  border-radius: 20px !important;
+  padding: 0 !important;
+  background: rgba(255,255,255,0.88) !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+}
 
+.swal2-html-container { margin: 0 !important; }
+
+.otp-wrapper {
+  padding: 28px 28px 22px;
+  min-width: 360px;
+  max-width: 420px;
+}
+
+.otp-head {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.otp-logo {
+  width: 60px; height: 60px; object-fit: contain;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+.otp-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0b2347;
+}
+
+.otp-sub {
+  font-size: 14px;
+  color: #53627a;
+  margin-top: 2px;
+}
+
+.otp-inputs {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin: 16px 0 8px;
+}
+
+.otp-box {
+  height: 48px;
+  border-radius: 12px;
+  border: 1.5px solid #d8deea;
+  text-align: center;
+  font-size: 20px;
+  outline: none;
+  transition: all .15s ease-in-out;
+  background: #fff;
+}
+.otp-box:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 4px rgba(13,110,253,0.12);
+}
+
+.otp-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.otp-expira {
+  font-size: 13px;
+  color: #65748b;
+  background: #eef3ff;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.btn-resend {
+  border: 0;
+  background: #ebeef5;
+  color: #2d3b55;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: filter .15s ease-in-out;
+}
+.btn-resend:hover { filter: brightness(0.95); }
+.btn-resend:disabled { opacity: .6; cursor: not-allowed; }
+
+.resend-badge {
+  font-size: 12px;
+  color: #475569;
+}
+
+.btn-primary-solid {
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
+  font-weight: 600 !important;
+}
+
+/* Dark mode friendly */
+@media (prefers-color-scheme: dark) {
+  .otp-popup { background: rgba(21,27,36,0.88) !important; }
+  .otp-title { color: #e8eefc; }
+  .otp-sub { color: #9fb0c9; }
+  .otp-box { background:#0f1722; color:#e5e7eb; border-color:#334155; }
+  .otp-box:focus { box-shadow: 0 0 0 4px rgba(59,130,246,0.25); border-color:#60a5fa; }
+  .otp-expira { background:#1e293b; color:#cbd5e1; }
+  .btn-resend { background:#1f2937; color:#e5e7eb; }
+  .resend-badge { color:#cbd5e1; }
+}
 

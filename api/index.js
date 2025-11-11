@@ -566,7 +566,7 @@ app.post('/api/registrar-usuario', async (req, res) => {
       [userId, token, expires]
     );
 
-    const link = `https://didadpol.laravel.app/definir-contrasena?token=${token}&email=${correoInstitucional}`;
+    const link = `https://rrhh-didadpol-1.onrender.com/definir-contrasena?token=${token}&email=${correoInstitucional}`;
 
     const resultado = await transporter.sendMail({
       from: 'DIDADPOL - RRHH <danieloyuela51@gmail.com>',
@@ -704,7 +704,7 @@ app.post('/api/recuperar-contrasena', async (req, res) => {
     );
 
     // Generar enlace
-    const resetUrl = `https://didadpol.laravel.app/definir-contrasena?token=${token}&email=${encodeURIComponent(email)}`;
+    const resetUrl = `https://rrhh-didadpol-1.onrender.com/definir-contrasena?token=${token}&email=${encodeURIComponent(email)}`;
 
    // Enviar correo (Brevo API HTTPS)
 await enviarCorreoBrevo(

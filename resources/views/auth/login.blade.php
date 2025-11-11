@@ -186,13 +186,19 @@
           const btn = document.getElementById('otp-resend');
           try {
             btn.disabled = true;
-            const res = await fetch(@json(route('2fa.resend')), {
+            const res = await fetch('/2fa/resend', {
               method:'POST',
-              headers:{'Content-Type':'application/json','X-CSRF-TOKEN':csrf},
+              credentials: 'same-origin',
+              headers:{
+                'Content-Type':'application/json',
+                'Accept':'application/json',
+                'X-Requested-With':'XMLHttpRequest',
+                'X-CSRF-TOKEN':csrf
+              },
               body: JSON.stringify({})
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data?.error || 'No fue posible reenviar el código.');
+            const data = await res.json().catch(()=> ({}));
+            if (!res.ok) throw new Error(data?.error || `Error ${res.status}.`);
             cooldown = Number(data?.cooldown ?? cooldown);
             startResendCooldown();
           } catch(err) {
@@ -223,14 +229,20 @@
                 return false;
               }
               try {
-                const res = await fetch(@json(route('2fa.verify')), {
+                const res = await fetch('/2fa/verify', {
                   method:'POST',
-                  headers:{'Content-Type':'application/json','X-CSRF-TOKEN':csrf},
+                  credentials: 'same-origin',
+                  headers:{
+                    'Content-Type':'application/json',
+                    'Accept':'application/json',
+                    'X-Requested-With':'XMLHttpRequest',
+                    'X-CSRF-TOKEN':csrf
+                  },
                   body: JSON.stringify({ code })
                 });
-                const data = await res.json();
+                const data = await res.json().catch(()=> ({}));
                 if (!res.ok) {
-                  Swal.showValidationMessage(data?.error || 'Código inválido o expirado.');
+                  Swal.showValidationMessage(data?.error || `Error ${res.status}.`);
                   return false;
                 }
                 window.location.assign(data?.redirect ?? @json(url('/home')));

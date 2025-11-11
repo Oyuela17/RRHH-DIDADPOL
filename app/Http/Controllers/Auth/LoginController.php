@@ -71,51 +71,51 @@ class LoginController extends Controller
             return back()->withInput()->with('error', 'Acceso denegado. Tu rol está inactivo.');
         }
 
-        // ✅ En producción: usar la API Node.js definida en el .env
-        try {
-            $baseUrl    = rtrim(env('DIDADPOL_API_URL'), '/'); // sin fallback a localhost
-            $timeout    = (int) env('DIDADPOL_API_TIMEOUT', 15);
-            $adminToken = env('ADMIN_TOKEN');
+// ✅ En producción: usar la API Node.js fija (Render)
+try {
+    $baseUrl = 'https://rrhh-didadpol-1.onrender.com'; // <-- URL fija de la API Node.js
+    $timeout = 15;
+    $adminToken = env('ADMIN_TOKEN');
 
-            $http = Http::timeout($timeout);
-            if (!empty($adminToken)) {
-                $http = $http->withHeaders([
-                    'Authorization' => 'Bearer ' . $adminToken,
-                ]);
-            }
-
-            // Enviar petición a la API Node para iniciar 2FA
-            $resp = $http->post($baseUrl . '/api/2fa/start', [
-                'email' => $email,
-            ]);
-
-            if (!$resp->successful()) {
-                return back()->with('error', 'No fue posible iniciar la verificación. Inténtalo de nuevo.');
-            }
-
-            $data = $resp->json();
-
-            // Guardar info de 2FA en sesión
-            session([
-                '2fa.challenge_id' => $data['challenge_id'] ?? null,
-                '2fa.email'        => $email,
-                '2fa.user_id'      => $user->id,
-                '2fa.remember'     => $request->filled('remember'),
-                '2fa.rol_nombre'   => $rol->nombre,
-                '2fa.expires_in'   => $data['expires_in'] ?? null,
-                '2fa.cooldown'     => $data['cooldown_resend'] ?? null,
-            ]);
-
-            return back()
-                ->with('pending_2fa', true)
-                ->with('masked_email', $data['masked_email'] ?? null)
-                ->with('expires_in', $data['expires_in'] ?? null)
-                ->with('cooldown', $data['cooldown_resend'] ?? null);
-        } catch (\Throwable $e) {
-            \Log::error('2FA start error: ' . $e->getMessage());
-            return back()->with('error', 'Ocurrió un problema iniciando la verificación.');
-        }
+    $http = Http::timeout($timeout);
+    if (!empty($adminToken)) {
+        $http = $http->withHeaders([
+            'Authorization' => 'Bearer ' . $adminToken,
+        ]);
     }
+
+    // Enviar petición a la API Node para iniciar 2FA
+    $resp = $http->post($baseUrl . '/api/2fa/start', [
+        'email' => $email,
+    ]);
+
+    if (!$resp->successful()) {
+        return back()->with('error', 'No fue posible iniciar la verificación. Inténtalo de nuevo.');
+    }
+
+    $data = $resp->json();
+
+    // Guardar info de 2FA en sesión
+    session([
+        '2fa.challenge_id' => $data['challenge_id'] ?? null,
+        '2fa.email'        => $email,
+        '2fa.user_id'      => $user->id,
+        '2fa.remember'     => $request->filled('remember'),
+        '2fa.rol_nombre'   => $rol->nombre,
+        '2fa.expires_in'   => $data['expires_in'] ?? null,
+        '2fa.cooldown'     => $data['cooldown_resend'] ?? null,
+    ]);
+
+    return back()
+        ->with('pending_2fa', true)
+        ->with('masked_email', $data['masked_email'] ?? null)
+        ->with('expires_in', $data['expires_in'] ?? null)
+        ->with('cooldown', $data['cooldown_resend'] ?? null);
+} catch (\Throwable $e) {
+    \Log::error('2FA start error: ' . $e->getMessage());
+    return back()->with('error', 'Ocurrió un problema iniciando la verificación.');
+}
+
 
     public function logout(Request $request)
     {

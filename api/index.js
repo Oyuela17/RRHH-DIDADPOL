@@ -534,10 +534,14 @@ async function enviarCorreoBrevo(to, subject, html) {
   }
 }
 
+// ==========================
+// REGISTRAR USUARIO + ENVIAR CORREO
+// ==========================
+const crypto = require('crypto');
 
+// Define el dominio del FRONT (Laravel). Ideal: setéalo en Render como env var.
+const WEB_BASE_URL = process.env.WEB_BASE_URL || 'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
 
-
-// ✅ REGISTRAR USUARIO + ENVIAR CORREO
 app.post('/api/registrar-usuario', async (req, res) => {
   const { nombre_completo, correo_personal, cod_persona } = req.body;
 
@@ -546,31 +550,53 @@ app.post('/api/registrar-usuario', async (req, res) => {
       return res.status(400).json({ error: 'Todos los campos son requeridos: nombre, correo, cod_persona' });
     }
 
-    const correoInstitucional = await generarCorreoInstitucional(nombre_completo);
+    const nombre = String(nombre_completo).trim();
+    const correoPersonal = String(correo_personal).trim().toLowerCase();
+
+    // Genera el correo institucional a partir del nombre
+    const correoInstitucional = (await generarCorreoInstitucional(nombre)).toLowerCase();
     const ahora = new Date().toISOString();
 
-    // ✅ Insertar también cod_persona en la tabla users
+    // Evitar duplicados por email institucional o cod_persona
+    const yaExiste = await pool.query(
+      `SELECT id FROM users WHERE LOWER(email) = $1 OR cod_persona = $2`,
+      [correoInstitucional, cod_persona]
+    );
+    if (yaExiste.rows.length > 0) {
+      return res.status(409).json({ error: 'Ya existe un usuario con ese correo institucional o cod_persona' });
+    }
+
+    // Insertar usuario (password vacío por ahora)
     const nuevoUsuario = await pool.query(
       `INSERT INTO users (name, email, password, created_at, updated_at, cod_persona)
        VALUES ($1, $2, $3, $4, $4, $5)
        RETURNING id`,
-      [nombre_completo, correoInstitucional, '', ahora, cod_persona]
+      [nombre, correoInstitucional, '', ahora, cod_persona]
     );
 
     const userId = nuevoUsuario.rows[0].id;
+
+    // Generar token de "definir contraseña" (24 horas)
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
+    // (Por higiene) eliminar tokens previos de ese usuario
+    await pool.query(`DELETE FROM password_tokens WHERE user_id = $1`, [userId]);
+
+    // Insertar token
     await pool.query(
-      'INSERT INTO password_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      `INSERT INTO password_tokens (user_id, token, expires_at, created_at)
+       VALUES ($1, $2, $3, NOW())`,
       [userId, token, expires]
     );
 
-    const link = `https://rrhh-didadpol-1.onrender.com/definir-contrasena?token=${token}&email=${correoInstitucional}`;
+    // ✅ Enlace al FRONT (Laravel), no a la API
+    const link = `${WEB_BASE_URL}/definir-contrasena?token=${encodeURIComponent(token)}&email=${encodeURIComponent(correoInstitucional)}`;
 
+    // Enviar correo al correo personal con el link para definir la contraseña institucional
     const resultado = await transporter.sendMail({
       from: 'DIDADPOL - RRHH <danieloyuela51@gmail.com>',
-      to: correo_personal,
+      to: correoPersonal,
       subject: 'Definir tu contraseña institucional',
       html: `
         <div style="max-width: 600px; margin: auto; border-radius: 8px; overflow: hidden; font-family: Arial, sans-serif;">
@@ -578,7 +604,7 @@ app.post('/api/registrar-usuario', async (req, res) => {
             <h1 style="color: #ffffff; margin: 0; font-size: 24px;">DIDADPOL</h1>
           </div>
           <div style="background-color: #ffffff; padding: 30px; color: #333;">
-            <h2 style="color: #003366;">Hola ${nombre_completo}</h2>
+            <h2 style="color: #003366;">Hola ${nombre}</h2>
             <p style="font-size: 16px;">Has sido registrado(a) en el sistema de Recursos Humanos de <strong>DIDADPOL</strong>.</p>
             <p style="font-size: 16px; margin-top: 15px;">
               <strong>Tu correo institucional es:</strong>
@@ -607,22 +633,23 @@ app.post('/api/registrar-usuario', async (req, res) => {
     });
 
     if (resultado.accepted && resultado.accepted.length > 0) {
-      console.log('📨 Correo enviado a:', correo_personal);
-      res.status(201).json({
+      console.log('📨 Correo enviado a:', correoPersonal);
+      return res.status(201).json({
         mensaje: 'Usuario registrado correctamente. Correo enviado.',
         correo_institucional: correoInstitucional,
         token
       });
     } else {
-      console.error('❌ Error al enviar correo:', resultado);
-      res.status(500).json({ error: 'No se pudo enviar el correo' });
+      console.error('❌ Error al enviar correo (nodemailer):', resultado);
+      return res.status(502).json({ error: 'No se pudo enviar el correo' });
     }
 
   } catch (error) {
     console.error('❌ Error al registrar usuario:', error);
-    res.status(500).json({ error: 'Error al registrar usuario', detalle: error.message });
+    return res.status(500).json({ error: 'Error al registrar usuario', detalle: error.message });
   }
 });
+
 
 
 // ==========================

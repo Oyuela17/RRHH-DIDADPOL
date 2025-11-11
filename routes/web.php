@@ -96,8 +96,6 @@ Route::get('/', function () {
 // Autenticación de Laravel
 Auth::routes();
 
-use App\Http\Controllers\Auth\LoginController;
-
 // ===============================
 // 🔐 RUTAS DE AUTENTICACIÓN
 // ===============================

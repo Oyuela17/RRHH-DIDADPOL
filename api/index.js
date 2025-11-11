@@ -718,7 +718,7 @@ res.json({ mensaje: 'Enlace de restablecimiento enviado' });
 //LOGIN 2FA
 
 // ====== CONFIG 2FA EN MEMORIA ======
-const bcrypt = require('bcrypt');
+
 const { v4: uuidv4 } = require('uuid');
 
 const OTP_TTL_MS = 15 * 60 * 1000;      // 15 minutos

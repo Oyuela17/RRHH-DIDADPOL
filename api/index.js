@@ -719,8 +719,6 @@ res.json({ mensaje: 'Enlace de restablecimiento enviado' });
 
 // ====== CONFIG 2FA EN MEMORIA ======
 
-const { v4: uuidv4 } = require('uuid');
-
 const OTP_TTL_MS = 15 * 60 * 1000;      // 15 minutos
 const PENDING_TTL_MS = 20 * 60 * 1000;  // ventana total para completar login
 const RESEND_COOLDOWN_MS = 60 * 1000;   // 60s entre reenvíos

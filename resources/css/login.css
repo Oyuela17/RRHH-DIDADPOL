@@ -486,3 +486,61 @@ input::placeholder {
   .resend-badge { color:#cbd5e1; }
 }
 
+/* ==== Fix: evitar scroll horizontal dentro del modal ==== */
+.otp-popup { 
+  width: min(92vw, 520px) !important;   /* modal responsivo */
+  max-width: 520px !important;
+  overflow: visible !important;         /* que el contenido no recorte sombras */
+}
+.swal2-html-container {
+  overflow-x: hidden !important;        /* quita la barra horizontal */
+  padding: 0 !important;
+}
+
+/* Ajustes del wrapper para no forzar ancho mínimo */
+.otp-wrapper {
+  width: 100%;
+  min-width: 0 !important;             /* evita desbordes por min-width */
+  padding: 28px 28px 22px;
+  box-sizing: border-box;
+}
+
+/* Grid de casillas: tamaño fluido y centrado */
+.otp-inputs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(40px, 56px)); /* máximo 56px, mínimo 40px */
+  justify-content: center;               /* centra el grupo */
+  gap: 10px;
+  margin: 16px 0 8px;
+}
+
+/* Casillas: que no crezcan más allá del grid */
+.otp-box {
+  width: 100%;
+  max-width: 56px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1.5px solid #d8deea;
+  text-align: center;
+  font-size: 20px;
+  background: #fff;
+  outline: none;
+  transition: all .15s ease-in-out;
+}
+
+/* Meta (expira + reenviar) que no empuje el ancho */
+.otp-meta {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Afinar en pantallas pequeñas */
+@media (max-width: 420px) {
+  .otp-inputs {
+    grid-template-columns: repeat(6, minmax(34px, 48px));
+    gap: 8px;
+  }
+  .otp-box { height: 44px; font-size: 18px; }
+}
+

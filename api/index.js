@@ -614,7 +614,7 @@ app.post('/api/registrar-usuario', async (req, res) => {
               Definir contraseña
             </a>
           </div>
-          <p style="font-size: 14px;">Este enlace expirará en <strong>24 horas</strong>.</p>
+          <p style="font-size: 14px;">Este enlace expirará en <strong>15 minutos</strong>.</p>
         </div>
         <div style="background-color: #003366; color: #ffffff; text-align: center; padding: 15px; font-size: 13px;">
           © ${new Date().getFullYear()} DIDADPOL · Todos los derechos reservados

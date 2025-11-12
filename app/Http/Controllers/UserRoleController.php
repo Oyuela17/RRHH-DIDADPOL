@@ -11,54 +11,63 @@ class UserRoleController extends Controller
     // Mostrar vista con usuarios y roles
     public function index(Request $request)
     {
-        // Cargar y guardar el rol del usuario autenticado en sesión
+        // Guardar en sesión el rol del usuario autenticado (si existe)
         if (Auth::check()) {
-            $rol = DB::table('roles')
+            $rolSesion = DB::table('roles')
                 ->join('role_user', 'roles.id', '=', 'role_user.role_id')
                 ->where('role_user.user_id', Auth::id())
                 ->value('roles.nombre');
 
-            session(['nombre_rol' => $rol ?? 'SIN ROL']);
+            session(['nombre_rol' => $rolSesion ?? 'SIN ROL']);
         }
 
-        // Parámetros de búsqueda, cantidad y ordenamiento (robustos)
-        $busqueda = strtoupper((string) $request->input('buscar', ''));
+        // Parámetros de búsqueda / paginación / orden
+        $busqueda = strtoupper(trim((string) $request->input('buscar', '')));
         $cantidad = (int) $request->input('registros', 5);
-        if ($cantidad <= 0) $cantidad = 5;
+        if ($cantidad <= 0) { $cantidad = 5; }
 
         $orden = $request->input('ordenar', 'nombre');
         if (!in_array($orden, ['nombre', 'fecha'], true)) {
             $orden = 'nombre';
         }
 
-        $usuarios_roles = DB::table('users')
-            ->leftJoin('role_user', 'users.id', '=', 'role_user.user_id')
-            ->leftJoin('roles', 'role_user.role_id', '=', 'roles.id')
+        // Consulta SIN duplicados por usuario, mostrando "SIN ROL" cuando no tenga
+        $usuarios_roles = DB::table('users as u')
+            ->leftJoin('role_user as ru', 'ru.user_id', '=', 'u.id')
+            ->leftJoin('roles as r', 'r.id', '=', 'ru.role_id')
             ->select(
-                'users.id',
-                'users.name',
-                'users.email',
-                'users.estado',
-                'roles.nombre as nombre_rol',
-                'roles.id as role_id',
-                'users.created_at'
+                'u.id',
+                'u.name',
+                'u.email',
+                'u.estado',
+                'u.created_at',
+                // Si un usuario tiene varios roles, tomamos uno (por ejemplo el máx alfabético)
+                DB::raw("COALESCE(MAX(r.nombre), 'SIN ROL') AS nombre_rol"),
+                DB::raw("MAX(r.id) AS role_id")
             )
-            ->when($busqueda !== '', function ($query) use ($busqueda) {
-                return $query->whereRaw("UPPER(users.name) LIKE ?", ["%{$busqueda}%"]);
+            ->when($busqueda !== '', function ($q) use ($busqueda) {
+                // Busca por nombre o correo (case-insensitive)
+                return $q->where(function ($w) use ($busqueda) {
+                    $w->whereRaw('UPPER(u.name) LIKE ?', ["%{$busqueda}%"])
+                      ->orWhereRaw('UPPER(u.email) LIKE ?', ["%{$busqueda}%"]);
+                });
             })
-            ->when($orden === 'fecha', function ($query) {
-                return $query->orderBy('users.created_at', 'desc');
-            }, function ($query) {
-                return $query->orderBy('users.name', 'asc');
+            // Agrupamos por campos de users para colapsar múltiples roles a 1 fila por usuario
+            ->groupBy('u.id', 'u.name', 'u.email', 'u.estado', 'u.created_at')
+            // Orden
+            ->when($orden === 'fecha', function ($q) {
+                return $q->orderBy('u.created_at', 'desc');
+            }, function ($q) {
+                return $q->orderBy('u.name', 'asc');
             })
             ->paginate($cantidad)
             ->appends([
-                'buscar'   => $request->input('buscar', ''),
-                'registros'=> $cantidad,
-                'ordenar'  => $orden,
+                'buscar'    => $request->input('buscar', ''),
+                'registros' => $cantidad,
+                'ordenar'   => $orden,
             ]);
 
-        // Solo roles ACTIVO para asignación
+        // Solo roles ACTIVO para el selector
         $roles = DB::table('roles')->where('estado', 'ACTIVO')->get();
 
         return view('usuarios_roles.index', compact('usuarios_roles', 'roles', 'busqueda', 'cantidad', 'orden'));
@@ -75,7 +84,8 @@ class UserRoleController extends Controller
         try {
             DB::beginTransaction();
 
-            // Pivot role_user (sin tocar timestamps en UPDATE para no fallar)
+            // Aseguramos que el usuario tenga SOLO UNA fila en role_user (opcional pero sano)
+            // Si tuviera varias, las dejamos en una sola con el role_id solicitado.
             $existe = DB::table('role_user')->where('user_id', $id)->exists();
 
             if ($existe) {
@@ -88,18 +98,18 @@ class UserRoleController extends Controller
                 DB::table('role_user')->insert([
                     'user_id'    => $id,
                     'role_id'    => $request->role_id,
-                    'created_at' => now(),   // si no existe la columna, no falla
+                    'created_at' => now(), // si la columna no existe, no falla
                 ]);
             }
 
-            // users: estado y reset de intentos si reactivamos
+            // Actualizar estado del usuario
             $estado = strtoupper($request->estado);
             $datosUsuario = [
                 'estado'     => $estado,
                 'updated_at' => now(),
             ];
             if ($estado === 'ACTIVO') {
-                // redundante con el trigger, pero seguro
+                // Resetear intentos fallidos al reactivar
                 $datosUsuario['intentos_fallidos'] = 0;
             }
 

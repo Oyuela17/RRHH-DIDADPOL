@@ -572,7 +572,6 @@ const elegirCorreoParaRegistro = async ({
 // ==========================
 // REGISTRAR USUARIO + ENVIAR CORREO (versión corregida)
 // ==========================
-const crypto = require('crypto');
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL || 'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
 

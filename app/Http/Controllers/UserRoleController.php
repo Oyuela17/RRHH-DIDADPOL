@@ -31,18 +31,17 @@ class UserRoleController extends Controller
         $busqueda = strtoupper((string) $request->input('buscar', ''));
         $orden    = $request->input('ordenar', 'nombre'); // nombre|fecha
         if (!in_array($orden, ['nombre', 'fecha'], true)) $orden = 'nombre';
-        $perPage  = max((int) $request->input('registros', 10), 5);
+        $perPage  = max((int) $request->input('registros', 5), 5);   // ✅ por defecto 5
         $page     = max((int) $request->input('page', 1), 1);
+
+        $apiBase = rtrim(env('API_BASE_URL', 'https://rrhh-didadpol-1.onrender.com'), '/');
 
         // ---- PLAN A: API ----
         try {
-            $url  = 'https://rrhh-didadpol-1.onrender.com/api/usuarios';
-
-            // Si hay problemas de SSL en el host, descomenta ->withoutVerifying()
             $resp = Http::timeout(10)
-                //->withoutVerifying()
+                // ->withoutVerifying()
                 ->acceptJson()
-                ->get($url)
+                ->get($apiBase . '/api/usuarios')
                 ->throw(); // lanza excepción si HTTP != 2xx
 
             $all = collect($resp->json()); // id, name, email, estado, nombre_rol, role_id
@@ -54,7 +53,7 @@ class UserRoleController extends Controller
                 )->values();
             }
 
-            // Orden (no viene created_at; usamos id como proxy de “fecha”)
+            // Orden (la API no trae created_at; usamos id como proxy de “fecha”)
             if ($orden === 'fecha') {
                 $all = $all->sortByDesc('id')->values();
             } else {
@@ -82,11 +81,10 @@ class UserRoleController extends Controller
             ]);
 
         } catch (\Throwable $e) {
-            // Logueamos por qué falló el Plan A y caemos al Plan B
             Log::error('Fallo API /api/usuarios: '.$e->getMessage());
         }
 
-        // ---- PLAN B (FALLBACK): BD con subconsultas, sin JOIN que esconda usuarios) ----
+        // ---- PLAN B (FALLBACK): BD con subconsultas que no esconden usuarios) ----
         $base = DB::table('users as u')
             ->select([
                 'u.id',
@@ -131,7 +129,7 @@ class UserRoleController extends Controller
     }
 
     /**
-     * Asignar o actualizar rol y estado del usuario (contra BD)
+     * Asignar o actualizar rol y estado del usuario (vía API, con fallback a BD)
      */
     public function asignar(Request $request, $id)
     {
@@ -140,13 +138,55 @@ class UserRoleController extends Controller
             'estado'  => 'required|in:ACTIVO,INACTIVO',
         ]);
 
+        $apiBase = rtrim(env('API_BASE_URL', 'https://rrhh-didadpol-1.onrender.com'), '/');
+
+        // ---- PLAN A: API ----
+        try {
+            // 1) Asignar rol: primero intento POST (asignación inicial)
+            $post = Http::timeout(10)
+                // ->withoutVerifying()
+                ->acceptJson()
+                ->post($apiBase . "/api/usuarios/{$id}/rol", [
+                    'role_id' => (int) $request->role_id,
+                ]);
+
+            if ($post->status() === 409) {
+                // Ya tiene rol → actualizo con PUT
+                Http::timeout(10)
+                    // ->withoutVerifying()
+                    ->acceptJson()
+                    ->put($apiBase . "/api/usuarios/{$id}/rol", [
+                        'role_id' => (int) $request->role_id,
+                    ])
+                    ->throw();
+            } elseif ($post->failed()) {
+                $post->throw(); // lanza si fue otro error
+            }
+
+            // 2) Actualizar estado
+            Http::timeout(10)
+                // ->withoutVerifying()
+                ->acceptJson()
+                ->put($apiBase . "/api/usuarios/{$id}/estado", [
+                    'estado' => strtoupper($request->estado),
+                ])
+                ->throw();
+
+            return redirect()
+                ->route('usuarios_roles.index')
+                ->with('success', 'La operación se realizó correctamente: el rol y el estado del usuario han sido actualizados.');
+        } catch (\Throwable $e) {
+            Log::error('Fallo API asignar rol/estado: '.$e->getMessage());
+            // Continúo al fallback
+        }
+
+        // ---- PLAN B (FALLBACK): BD ----
         try {
             DB::beginTransaction();
 
             $existe = DB::table('role_user')->where('user_id', $id)->exists();
 
             if ($existe) {
-                // role_user puede no tener updated_at → no lo toques
                 DB::table('role_user')
                     ->where('user_id', $id)
                     ->update([
@@ -169,20 +209,39 @@ class UserRoleController extends Controller
 
             return redirect()
                 ->route('usuarios_roles.index')
-                ->with('success', '✅ Rol y estado actualizados correctamente.');
+                ->with('success', 'La operación se realizó correctamente (modo contingencia): rol y estado actualizados desde la base de datos.');
         } catch (\Throwable $e) {
             DB::rollBack();
             return redirect()
                 ->route('usuarios_roles.index')
-                ->with('error', '❌ Error al asignar rol: ' . $e->getMessage());
+                ->with('error', 'No fue posible completar la operación. Detalle técnico: ' . $e->getMessage());
         }
     }
 
     /**
-     * Eliminar un usuario (y su relación de rol)
+     * Eliminar un usuario (vía API, con fallback a BD)
      */
     public function eliminar($id)
     {
+        $apiBase = rtrim(env('API_BASE_URL', 'https://rrhh-didadpol-1.onrender.com'), '/');
+
+        // ---- PLAN A: API ----
+        try {
+            Http::timeout(10)
+                // ->withoutVerifying()
+                ->acceptJson()
+                ->delete($apiBase . "/api/usuarios/{$id}")
+                ->throw();
+
+            return redirect()
+                ->route('usuarios_roles.index')
+                ->with('success', 'El usuario ha sido eliminado correctamente.');
+        } catch (\Throwable $e) {
+            Log::error('Fallo API eliminar usuario: '.$e->getMessage());
+            // Continúo al fallback
+        }
+
+        // ---- PLAN B (FALLBACK): BD ----
         try {
             DB::beginTransaction();
 
@@ -193,19 +252,19 @@ class UserRoleController extends Controller
                 DB::rollBack();
                 return redirect()
                     ->route('usuarios_roles.index')
-                    ->with('error', '⚠️ Usuario no encontrado.');
+                    ->with('error', 'No se encontró el usuario que intentaba eliminar.');
             }
 
             DB::commit();
 
             return redirect()
                 ->route('usuarios_roles.index')
-                ->with('success', '🗑️ Usuario eliminado correctamente.');
+                ->with('success', 'El usuario ha sido eliminado correctamente (modo contingencia).');
         } catch (\Throwable $e) {
             DB::rollBack();
             return redirect()
                 ->route('usuarios_roles.index')
-                ->with('error', '❌ Error al eliminar usuario: ' . $e->getMessage());
+                ->with('error', 'No fue posible eliminar el usuario. Detalle técnico: ' . $e->getMessage());
         }
     }
 }

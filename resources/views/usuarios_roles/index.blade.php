@@ -53,7 +53,7 @@
         <label>Mostrar</label>
         <select name="registros" onchange="this.form.submit()">
           @foreach([5, 10, 15] as $opcion)
-            <option value="{{ $opcion }}" {{ (int)request('registros', 10) == $opcion ? 'selected' : '' }}>{{ $opcion }}</option>
+            <option value="{{ $opcion }}" {{ (int)request('registros', 5) == $opcion ? 'selected' : '' }}>{{ $opcion }}</option>
           @endforeach
         </select>
         <span>registros</span>
@@ -76,15 +76,13 @@
       <tbody id="cuerpoTabla">
         @forelse ($usuarios_roles as $u)
           @php
-            // Compatibilidad array/objeto
             $id         = data_get($u, 'id');
             $name       = data_get($u, 'name');
             $email      = data_get($u, 'email');
             $estado     = strtoupper((string) data_get($u, 'estado', 'INACTIVO'));
-            $roleId     = data_get($u, 'role_id'); // puede venir null
+            $roleId     = data_get($u, 'role_id');
             $nombreRol  = data_get($u, 'nombre_rol', 'SIN ROL');
-            // La API no trae created_at; usamos id como proxy para ordenar por "fecha"
-            $fechaKey   = data_get($u, 'created_at', $id);
+            $fechaKey   = data_get($u, 'created_at', $id); // proxy para “fecha”
           @endphp
           <tr data-nombre="{{ strtoupper($name) }}" data-fecha="{{ $fechaKey }}">
             <td>{{ $name }}</td>
@@ -160,8 +158,8 @@
       </div>
 
       <div class="modal-botones">
-        <button type="submit" class="btn btn-success">Guardar</button>
-        <button type="button" class="btn btn-danger" id="cancelarModal">Cancelar</button>
+        <button type="submit" class="btn btn-success btn-accion">Guardar</button>
+        <button type="button" class="btn btn-danger btn-accion" id="cancelarModal">Cancelar</button>
       </div>
     </form>
   </div>
@@ -215,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Búsqueda en tiempo real
   campoBusqueda.addEventListener('input', () => {
-    const valor = campoBusqueda.value.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, '').substring(0, 40);
+    const valor = (campoBusqueda.value || '').toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, '').substring(0, 40);
     campoBusqueda.value = valor;
     filtrarYOrdenar();
   });
@@ -255,9 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmButtonColor: '#d33',
         cancelButtonColor: '#6c757d'
       }).then((result) => {
-        if (result.isConfirmed) {
-          form.submit();
-        }
+        if (result.isConfirmed) form.submit();
       });
     });
   });
@@ -265,21 +261,13 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <style>
-.btn-accion {
-  width: 100px;
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 6px 0;
-  transition: all 0.2s ease;
-}
+/* Alinear botones y forzar tamaños iguales */
+.acciones-botones { display:flex; gap:8px; align-items:center; }
+.btn-accion { width: 100px; font-weight: 600; border-radius: 6px; padding: 6px 0; transition: all 0.2s ease; }
 .btn-accion:hover { transform: scale(1.05); }
-.badge-success {
-  background-color: #28a745; color: #fff; padding: 4px 10px;
-  border-radius: 12px; font-weight: 600;
-}
-.badge-inactivo {
-  background-color: #dc3545; color: #fff; padding: 4px 10px;
-  border-radius: 12px; font-weight: 600;
-}
+
+/* Badges de estado */
+.badge-success { background-color:#28a745; color:#fff; padding:4px 10px; border-radius:12px; font-weight:600; }
+.badge-inactivo{ background-color:#dc3545; color:#fff; padding:4px 10px; border-radius:12px; font-weight:600; }
 </style>
 @endsection

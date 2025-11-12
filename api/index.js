@@ -487,7 +487,6 @@ const quitarAcentos = (texto) => {
 // ==========================
 // REGISTRAR USUARIO (personal o institucional)
 // ==========================
-const crypto = require('crypto');
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL || 'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
 

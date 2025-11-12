@@ -569,6 +569,15 @@ app.post('/api/registrar-usuario', async (req, res) => {
        VALUES ($1, $2, $3, NOW())`,
       [userId, token, expires]
     );
+   //  Definir base del FRONT (Laravel)
+   const WEB_BASE_URL =
+   process.env.WEB_BASE_URL ||
+   process.env.FRONTEND_URL || // por si tenías otro nombre
+  'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
+
+   // (opcional) visibilidad en logs al iniciar:
+   console.log('[ENV] WEB_BASE_URL =', WEB_BASE_URL);
+
 
     // 5️⃣ Enlace al FRONT
     const link = `${WEB_BASE_URL}/definir-contrasena?token=${encodeURIComponent(token)}&email=${encodeURIComponent(correoFinal)}`;

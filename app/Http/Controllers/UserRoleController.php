@@ -5,70 +5,81 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;                 // 👈 usamos la API
+use Illuminate\Pagination\LengthAwarePaginator;     // 👈 paginación manual
 
 class UserRoleController extends Controller
 {
     /**
-     * Mostrar vista con usuarios y roles
+     * Mostrar vista con usuarios y roles (lista desde la API)
      */
     public function index(Request $request)
     {
-        // Cargar y guardar el rol del usuario autenticado en sesión
+        // Rol del usuario autenticado (insignia del header)
         if (Auth::check()) {
             $rol = DB::table('roles')
                 ->join('role_user', 'roles.id', '=', 'role_user.role_id')
                 ->where('role_user.user_id', Auth::id())
                 ->value('roles.nombre');
-
             session(['nombre_rol' => $rol ?? 'SIN ROL']);
         }
 
-        // Parámetros de búsqueda, cantidad y ordenamiento
+        // Parámetros UI
         $busqueda = strtoupper((string) $request->input('buscar', ''));
-        $cantidad = max((int) $request->input('registros', 5), 5);
+        $orden    = $request->input('ordenar', 'nombre'); // nombre|fecha
+        if (!in_array($orden, ['nombre', 'fecha'], true)) $orden = 'nombre';
 
-        $orden = $request->input('ordenar', 'nombre');
-        if (!in_array($orden, ['nombre', 'fecha'], true)) {
-            $orden = 'nombre';
+        $perPage  = max((int) $request->input('registros', 10), 5);
+        $page     = max((int) $request->input('page', 1), 1);
+
+        // 🔗 URL directa a tu API
+        $url = 'https://rrhh-didadpol-1.onrender.com/api/usuarios';
+
+        // Llamar API
+        $resp = Http::timeout(10)->get($url);
+        if ($resp->failed()) {
+            return back()->with('error', 'No se pudo obtener la lista desde la API.');
         }
 
-        // ✅ Consulta definitiva: LEFT JOIN forzado con DB::raw
-        $usuarios_roles = DB::table('users as u')
-            ->select(
-                'u.id',
-                'u.name',
-                'u.email',
-                'u.estado',
-                DB::raw("COALESCE(r.nombre, 'SIN ROL') as nombre_rol"),
-                DB::raw("r.id as role_id"),
-                'u.created_at'
-            )
-            ->leftJoin(DB::raw('(SELECT * FROM role_user) as ru'), 'ru.user_id', '=', 'u.id')
-            ->leftJoin(DB::raw('(SELECT * FROM roles) as r'), 'r.id', '=', 'ru.role_id')
-            ->whereRaw('1=1') // evita filtrado implícito de nulos
-            ->when($busqueda !== '', function ($query) use ($busqueda) {
-                return $query->whereRaw("UPPER(u.name) LIKE ?", ["%{$busqueda}%"]);
-            })
-            ->when($orden === 'fecha', function ($query) {
-                return $query->orderBy('u.created_at', 'desc');
-            }, function ($query) {
-                return $query->orderBy('u.name', 'asc');
-            })
-            ->paginate($cantidad)
-            ->appends([
-                'buscar'   => $request->input('buscar', ''),
-                'registros'=> $cantidad,
-                'ordenar'  => $orden,
-            ]);
+        // Colección completa tal cual devuelve la API
+        // Campos esperados: id, name, email, estado, nombre_rol, role_id
+        $all = collect($resp->json());
 
-        // Solo roles activos para asignar
+        // Filtro por nombre
+        if ($busqueda !== '') {
+            $all = $all->filter(fn ($u) => str_contains(strtoupper($u['name'] ?? ''), $busqueda))->values();
+        }
+
+        // Orden (la API no trae created_at; usamos id como proxy de “fecha”)
+        if ($orden === 'fecha') {
+            $all = $all->sortByDesc('id')->values();
+        } else {
+            $all = $all->sortBy(fn ($u) => strtoupper($u['name'] ?? ''))->values();
+        }
+
+        // Paginación manual sobre la colección
+        $total = $all->count();
+        $items = $all->forPage($page, $perPage)->values();
+
+        $usuarios_roles = new LengthAwarePaginator(
+            $items, $total, $perPage, $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        // Roles activos para el modal (desde BD; si quieres, luego los pasamos a la API)
         $roles = DB::table('roles')->where('estado', 'ACTIVO')->get();
 
-        return view('usuarios_roles.index', compact('usuarios_roles', 'roles', 'busqueda', 'cantidad', 'orden'));
+        return view('usuarios_roles.index', [
+            'usuarios_roles' => $usuarios_roles,
+            'roles'          => $roles,
+            'busqueda'       => $busqueda,
+            'cantidad'       => $perPage,
+            'orden'          => $orden,
+        ]);
     }
 
     /**
-     * Asignar o actualizar rol y estado del usuario
+     * Asignar o actualizar rol y estado del usuario (contra BD por ahora)
      */
     public function asignar(Request $request, $id)
     {
@@ -83,33 +94,25 @@ class UserRoleController extends Controller
             $existe = DB::table('role_user')->where('user_id', $id)->exists();
 
             if ($existe) {
+                // ⚠️ Sin updated_at para evitar error si no existe esa columna
                 DB::table('role_user')
                     ->where('user_id', $id)
                     ->update([
-                        'role_id'    => $request->role_id,
-                        'updated_at' => now(),
+                        'role_id' => $request->role_id,
                     ]);
             } else {
                 DB::table('role_user')->insert([
                     'user_id'    => $id,
                     'role_id'    => $request->role_id,
                     'created_at' => now(),
-                    'updated_at' => now(),
                 ]);
             }
 
-            // Actualizar estado de usuario
-            $estado = strtoupper($request->estado);
-            $datosUsuario = [
-                'estado'     => $estado,
+            DB::table('users')->where('id', $id)->update([
+                'estado'     => strtoupper($request->estado),
                 'updated_at' => now(),
-            ];
-
-            if ($estado === 'ACTIVO') {
-                $datosUsuario['intentos_fallidos'] = 0;
-            }
-
-            DB::table('users')->where('id', $id)->update($datosUsuario);
+                // si tienes trigger que resetea intentos_fallidos al activar, puedes omitirlo
+            ]);
 
             DB::commit();
 
@@ -125,17 +128,14 @@ class UserRoleController extends Controller
     }
 
     /**
-     * Eliminar un usuario (y su relación de rol)
+     * Eliminar un usuario (y su relación de rol) — contra BD
      */
     public function eliminar($id)
     {
         try {
             DB::beginTransaction();
 
-            // Borrar primero relación en role_user
             DB::table('role_user')->where('user_id', $id)->delete();
-
-            // Luego borrar el usuario
             $eliminado = DB::table('users')->where('id', $id)->delete();
 
             if ($eliminado === 0) {

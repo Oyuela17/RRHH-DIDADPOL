@@ -32,26 +32,26 @@ class UserRoleController extends Controller
             $orden = 'nombre';
         }
 
-        // Consulta robusta con LEFT JOIN
-        $usuarios_roles = DB::table('users')
-            ->leftJoin('role_user', 'users.id', '=', 'role_user.user_id')
-            ->leftJoin('roles', 'role_user.role_id', '=', 'roles.id')
+        // ✅ Consulta robusta con alias y COALESCE (garantiza mostrar todos los usuarios)
+        $usuarios_roles = DB::table('users as u')
             ->select(
-                'users.id',
-                'users.name',
-                'users.email',
-                'users.estado',
-                'roles.nombre as nombre_rol',
-                'roles.id as role_id',
-                'users.created_at'
+                'u.id',
+                'u.name',
+                'u.email',
+                'u.estado',
+                DB::raw("COALESCE(r.nombre, 'SIN ROL') as nombre_rol"),
+                DB::raw("r.id as role_id"),
+                'u.created_at'
             )
+            ->leftJoin('role_user as ru', 'ru.user_id', '=', 'u.id')
+            ->leftJoin('roles as r', 'r.id', '=', 'ru.role_id')
             ->when($busqueda !== '', function ($query) use ($busqueda) {
-                return $query->whereRaw("UPPER(users.name) LIKE ?", ["%{$busqueda}%"]);
+                return $query->whereRaw("UPPER(u.name) LIKE ?", ["%{$busqueda}%"]);
             })
             ->when($orden === 'fecha', function ($query) {
-                return $query->orderBy('users.created_at', 'desc');
+                return $query->orderBy('u.created_at', 'desc');
             }, function ($query) {
-                return $query->orderBy('users.name', 'asc');
+                return $query->orderBy('u.name', 'asc');
             })
             ->paginate($cantidad)
             ->appends([

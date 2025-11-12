@@ -1002,7 +1002,11 @@ app.post('/api/2fa/verify', limiter2FA, async (req, res) => {
 });
 
 
-// ✅ CRUD ROLES
+// ✅ CRUD ROLES + USUARIOS/ROLES FINAL
+
+// =======================
+// ROLES
+// =======================
 
 // Obtener todos los roles
 app.get('/api/roles', async (req, res) => {
@@ -1015,14 +1019,13 @@ app.get('/api/roles', async (req, res) => {
   }
 });
 
-// Obtener un solo rol por ID
+// Obtener un rol por ID
 app.get('/api/roles/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const resultado = await pool.query('SELECT * FROM roles WHERE id = $1', [id]);
-    if (resultado.rows.length === 0) {
+    if (resultado.rows.length === 0)
       return res.status(404).json({ error: 'Rol no encontrado' });
-    }
     res.json(resultado.rows[0]);
   } catch (error) {
     console.error('❌ Error al obtener rol:', error);
@@ -1030,7 +1033,7 @@ app.get('/api/roles/:id', async (req, res) => {
   }
 });
 
-// Crear nuevo rol (con estado)
+// Crear nuevo rol
 app.post('/api/roles', async (req, res) => {
   const { nombre, descripcion, estado } = req.body;
   if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
@@ -1039,8 +1042,9 @@ app.post('/api/roles', async (req, res) => {
     const ahora = new Date().toISOString();
     const nuevo = await pool.query(
       `INSERT INTO roles (nombre, descripcion, estado, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $4) RETURNING *`,
-      [nombre, descripcion || '', estado || 'Activo', ahora]
+       VALUES ($1, $2, $3, $4, $4)
+       RETURNING *`,
+      [nombre, descripcion || '', estado || 'ACTIVO', ahora]
     );
     res.status(201).json({ mensaje: 'Rol creado exitosamente', rol: nuevo.rows[0] });
   } catch (error) {
@@ -1049,7 +1053,7 @@ app.post('/api/roles', async (req, res) => {
   }
 });
 
-// Actualizar rol (incluye estado)
+// Actualizar rol
 app.put('/api/roles/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, descripcion, estado } = req.body;
@@ -1057,13 +1061,14 @@ app.put('/api/roles/:id', async (req, res) => {
   try {
     const ahora = new Date().toISOString();
     const actualizado = await pool.query(
-      `UPDATE roles SET nombre = $1, descripcion = $2, estado = $3, updated_at = $4 WHERE id = $5 RETURNING *`,
-      [nombre, descripcion || '', estado || 'Activo', ahora, id]
+      `UPDATE roles
+       SET nombre = $1, descripcion = $2, estado = $3, updated_at = $4
+       WHERE id = $5 RETURNING *`,
+      [nombre, descripcion || '', estado || 'ACTIVO', ahora, id]
     );
 
-    if (actualizado.rowCount === 0) {
+    if (actualizado.rowCount === 0)
       return res.status(404).json({ error: 'Rol no encontrado' });
-    }
 
     res.json({ mensaje: 'Rol actualizado', rol: actualizado.rows[0] });
   } catch (error) {
@@ -1075,13 +1080,10 @@ app.put('/api/roles/:id', async (req, res) => {
 // Eliminar rol
 app.delete('/api/roles/:id', async (req, res) => {
   const { id } = req.params;
-
   try {
     const eliminado = await pool.query('DELETE FROM roles WHERE id = $1 RETURNING *', [id]);
-
-    if (eliminado.rowCount === 0) {
+    if (eliminado.rowCount === 0)
       return res.status(404).json({ error: 'Rol no encontrado' });
-    }
 
     res.json({ mensaje: 'Rol eliminado correctamente' });
   } catch (error) {
@@ -1090,15 +1092,26 @@ app.delete('/api/roles/:id', async (req, res) => {
   }
 });
 
+
+// =======================
+// USUARIOS + ROLES
+// =======================
+
 // Obtener todos los usuarios con su rol y estado
 app.get('/api/usuarios', async (req, res) => {
   try {
     const resultado = await pool.query(`
-      SELECT u.id, u.name, u.email, u.estado, r.nombre AS nombre_rol, r.id AS role_id
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.estado, 
+        COALESCE(r.nombre, 'SIN ROL') AS nombre_rol,
+        r.id AS role_id
       FROM users u
       LEFT JOIN role_user ru ON ru.user_id = u.id
       LEFT JOIN roles r ON r.id = ru.role_id
-      ORDER BY u.id;
+      ORDER BY u.id ASC;
     `);
     res.json(resultado.rows);
   } catch (err) {
@@ -1106,7 +1119,6 @@ app.get('/api/usuarios', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
 
 // Cambiar estado del usuario
 app.put('/api/usuarios/:id/estado', async (req, res) => {
@@ -1118,45 +1130,28 @@ app.put('/api/usuarios/:id/estado', async (req, res) => {
       'UPDATE users SET estado = UPPER($1), updated_at = NOW() WHERE id = $2',
       [estado, id]
     );
-    res.json({ message: 'Estado actualizado correctamente' });
+    res.json({ message: '✅ Estado actualizado correctamente' });
   } catch (err) {
     console.error('❌ Error al cambiar estado:', err);
     res.status(500).json({ error: 'No se pudo actualizar el estado' });
   }
 });
 
-
-// Cambiar el rol de un usuario
-app.put('/api/usuarios/:id/rol', async (req, res) => {
-  const { id } = req.params;
-  const { nuevoRolId } = req.body;
-
-  try {
-    await pool.query('UPDATE role_user SET role_id = $1, created_at = NOW() WHERE user_id = $2', [nuevoRolId, id]);
-    res.json({ message: 'Rol asignado correctamente' });
-  } catch (err) {
-    console.error('Error al asignar rol:', err);
-    res.status(500).json({ error: 'No se pudo asignar el rol' });
-  }
-});
-// Asignar un nuevo rol (solo si aún no existe)
+// Asignar rol a usuario (solo si no tiene)
 app.post('/api/usuarios/:id/rol', async (req, res) => {
   const { id } = req.params;
   const { role_id } = req.body;
 
-  if (!role_id || isNaN(role_id)) {
-    return res.status(400).json({ error: 'El role_id es obligatorio y debe ser un número válido' });
-  }
+  if (!role_id || isNaN(role_id))
+    return res.status(400).json({ error: 'El role_id es obligatorio y debe ser numérico' });
 
   try {
     const existe = await pool.query('SELECT * FROM role_user WHERE user_id = $1', [id]);
-
-    if (existe.rowCount > 0) {
+    if (existe.rowCount > 0)
       return res.status(409).json({ error: 'El usuario ya tiene un rol asignado. Usa PUT para editarlo.' });
-    }
 
     await pool.query(
-      'INSERT INTO role_user (user_id, role_id, created_at) VALUES ($1, $2, NOW())',
+      'INSERT INTO role_user (user_id, role_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
       [id, role_id]
     );
 
@@ -1167,24 +1162,21 @@ app.post('/api/usuarios/:id/rol', async (req, res) => {
   }
 });
 
-// Editar rol existente
+// Editar rol de usuario existente
 app.put('/api/usuarios/:id/rol', async (req, res) => {
   const { id } = req.params;
   const { role_id } = req.body;
 
-  if (!role_id || isNaN(role_id)) {
-    return res.status(400).json({ error: 'El role_id es obligatorio y debe ser un número válido' });
-  }
+  if (!role_id || isNaN(role_id))
+    return res.status(400).json({ error: 'El role_id es obligatorio y debe ser numérico' });
 
   try {
     const existe = await pool.query('SELECT * FROM role_user WHERE user_id = $1', [id]);
-
-    if (existe.rowCount === 0) {
+    if (existe.rowCount === 0)
       return res.status(404).json({ error: 'El usuario no tiene un rol asignado. Usa POST para asignarlo.' });
-    }
 
     await pool.query(
-      'UPDATE role_user SET role_id = $1, created_at = NOW() WHERE user_id = $2',
+      'UPDATE role_user SET role_id = $1, updated_at = NOW() WHERE user_id = $2',
       [role_id, id]
     );
 
@@ -1194,6 +1186,34 @@ app.put('/api/usuarios/:id/rol', async (req, res) => {
     res.status(500).json({ error: 'No se pudo actualizar el rol.' });
   }
 });
+
+// ✅ Eliminar usuario (y su rol asociado)
+app.delete('/api/usuarios/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query('BEGIN');
+
+    // Borrar relación del rol primero (para no romper FK)
+    await pool.query('DELETE FROM role_user WHERE user_id = $1', [id]);
+
+    // Luego borrar el usuario
+    const eliminado = await pool.query('DELETE FROM users WHERE id = $1 RETURNING *', [id]);
+
+    if (eliminado.rowCount === 0) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    await pool.query('COMMIT');
+    res.json({ message: '🗑️ Usuario eliminado correctamente', usuario: eliminado.rows[0] });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('❌ Error al eliminar usuario:', err);
+    res.status(500).json({ error: 'No se pudo eliminar el usuario.' });
+  }
+});
+
 
 // ========================
 // MODULOS - Obtener todos

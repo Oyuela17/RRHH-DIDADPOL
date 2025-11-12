@@ -17,6 +17,20 @@
 </script>
 @endif
 
+@if (session('error'))
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: '{{ session("error") }}',
+      confirmButtonText: 'Entendido',
+      confirmButtonColor: '#d33'
+    });
+  });
+</script>
+@endif
+
 <div class="usuarios-wrapper">
   <div class="titulo-con-linea">
     <h2>Usuarios Roles</h2>
@@ -75,13 +89,21 @@
           <td class="acciones-botones">
             <button 
               type="button"
-              class="btn {{ $usuario->role_id ? 'btn-warning' : 'btn-asignar' }} btn-editar-rol"
+              class="btn btn-warning btn-accion btn-editar-rol"
               data-id="{{ $usuario->id }}"
               data-rol="{{ $usuario->role_id }}"
               data-estado="{{ $usuario->estado }}"
               data-modo="{{ $usuario->role_id ? 'editar' : 'asignar' }}">
-              {{ $usuario->role_id ? 'Editar Rol' : 'Asignar Rol' }}
+              {{ $usuario->role_id ? 'Editar' : 'Asignar' }}
             </button>
+
+            <form method="POST" action="{{ route('usuarios_roles.eliminar', $usuario->id) }}" class="form-eliminar" style="display:inline;">
+              @csrf
+              @method('DELETE')
+              <button type="button" class="btn btn-danger btn-accion btn-eliminar" data-id="{{ $usuario->id }}">
+                Eliminar
+              </button>
+            </form>
           </td>
         </tr>
         @empty
@@ -177,16 +199,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.style.display = 'none';
-    }
+    if (e.target === modal) modal.style.display = 'none';
   });
 
   // Búsqueda en tiempo real
   campoBusqueda.addEventListener('input', () => {
     const valor = campoBusqueda.value.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ]/g, '').substring(0, 25);
     campoBusqueda.value = valor;
-
     filtrarYOrdenar();
   });
 
@@ -201,12 +220,8 @@ document.addEventListener('DOMContentLoaded', () => {
     );
 
     filtradas.sort((a, b) => {
-      if (criterio === 'nombre') {
-        return a.dataset.nombre.localeCompare(b.dataset.nombre);
-      }
-      if (criterio === 'fecha') {
-        return new Date(b.dataset.fecha) - new Date(a.dataset.fecha);
-      }
+      if (criterio === 'nombre') return a.dataset.nombre.localeCompare(b.dataset.nombre);
+      if (criterio === 'fecha') return new Date(b.dataset.fecha) - new Date(a.dataset.fecha);
       return 0;
     });
 
@@ -214,6 +229,56 @@ document.addEventListener('DOMContentLoaded', () => {
     filtradas.forEach(f => cuerpoTabla.appendChild(f));
     paginacion.style.display = filtro ? 'none' : 'block';
   }
+
+  // Eliminar usuario con confirmación
+  document.querySelectorAll('.btn-eliminar').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const form = btn.closest('.form-eliminar');
+
+      Swal.fire({
+        title: '¿Eliminar usuario?',
+        text: 'Esta acción no se puede deshacer.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.submit();
+        }
+      });
+    });
+  });
 });
 </script>
+
+<style>
+.btn-accion {
+  width: 100px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 6px 0;
+  transition: all 0.2s ease;
+}
+.btn-accion:hover {
+  transform: scale(1.05);
+}
+.badge-success {
+  background-color: #28a745;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+.badge-inactivo {
+  background-color: #dc3545;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+</style>
 @endsection

@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\DB;
 
 class UserRoleController extends Controller
 {
-    // Mostrar vista con usuarios y roles
+    /**
+     * Mostrar vista con usuarios y roles
+     */
     public function index(Request $request)
     {
         // Cargar y guardar el rol del usuario autenticado en sesión
@@ -21,16 +23,16 @@ class UserRoleController extends Controller
             session(['nombre_rol' => $rol ?? 'SIN ROL']);
         }
 
-        // Parámetros de búsqueda, cantidad y ordenamiento (robustos)
+        // Parámetros de búsqueda, cantidad y ordenamiento
         $busqueda = strtoupper((string) $request->input('buscar', ''));
-        $cantidad = (int) $request->input('registros', 5);
-        if ($cantidad <= 0) $cantidad = 5;
+        $cantidad = max((int) $request->input('registros', 5), 5);
 
         $orden = $request->input('ordenar', 'nombre');
         if (!in_array($orden, ['nombre', 'fecha'], true)) {
             $orden = 'nombre';
         }
 
+        // Consulta robusta con LEFT JOIN
         $usuarios_roles = DB::table('users')
             ->leftJoin('role_user', 'users.id', '=', 'role_user.user_id')
             ->leftJoin('roles', 'role_user.role_id', '=', 'roles.id')
@@ -58,13 +60,15 @@ class UserRoleController extends Controller
                 'ordenar'  => $orden,
             ]);
 
-        // Solo roles ACTIVO para asignación
+        // Solo roles activos para asignar
         $roles = DB::table('roles')->where('estado', 'ACTIVO')->get();
 
         return view('usuarios_roles.index', compact('usuarios_roles', 'roles', 'busqueda', 'cantidad', 'orden'));
     }
 
-    // Asignar o actualizar rol y estado del usuario
+    /**
+     * Asignar o actualizar rol y estado del usuario
+     */
     public function asignar(Request $request, $id)
     {
         $request->validate([
@@ -75,31 +79,32 @@ class UserRoleController extends Controller
         try {
             DB::beginTransaction();
 
-            // Pivot role_user (sin tocar timestamps en UPDATE para no fallar)
             $existe = DB::table('role_user')->where('user_id', $id)->exists();
 
             if ($existe) {
                 DB::table('role_user')
                     ->where('user_id', $id)
                     ->update([
-                        'role_id' => $request->role_id,
+                        'role_id'    => $request->role_id,
+                        'updated_at' => now(),
                     ]);
             } else {
                 DB::table('role_user')->insert([
                     'user_id'    => $id,
                     'role_id'    => $request->role_id,
-                    'created_at' => now(),   // si no existe la columna, no falla
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
-            // users: estado y reset de intentos si reactivamos
+            // Actualizar estado de usuario
             $estado = strtoupper($request->estado);
             $datosUsuario = [
                 'estado'     => $estado,
                 'updated_at' => now(),
             ];
+
             if ($estado === 'ACTIVO') {
-                // redundante con el trigger, pero seguro
                 $datosUsuario['intentos_fallidos'] = 0;
             }
 
@@ -109,12 +114,46 @@ class UserRoleController extends Controller
 
             return redirect()
                 ->route('usuarios_roles.index')
-                ->with('success', 'Rol y estado actualizados correctamente.');
+                ->with('success', '✅ Rol y estado actualizados correctamente.');
         } catch (\Throwable $e) {
             DB::rollBack();
             return redirect()
                 ->route('usuarios_roles.index')
-                ->with('error', 'Error al asignar rol: ' . $e->getMessage());
+                ->with('error', '❌ Error al asignar rol: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Eliminar un usuario (y su relación de rol)
+     */
+    public function eliminar($id)
+    {
+        try {
+            DB::beginTransaction();
+
+            // Borrar primero relación en role_user
+            DB::table('role_user')->where('user_id', $id)->delete();
+
+            // Luego borrar el usuario
+            $eliminado = DB::table('users')->where('id', $id)->delete();
+
+            if ($eliminado === 0) {
+                DB::rollBack();
+                return redirect()
+                    ->route('usuarios_roles.index')
+                    ->with('error', '⚠️ Usuario no encontrado.');
+            }
+
+            DB::commit();
+
+            return redirect()
+                ->route('usuarios_roles.index')
+                ->with('success', '🗑️ Usuario eliminado correctamente.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()
+                ->route('usuarios_roles.index')
+                ->with('error', '❌ Error al eliminar usuario: ' . $e->getMessage());
         }
     }
 }

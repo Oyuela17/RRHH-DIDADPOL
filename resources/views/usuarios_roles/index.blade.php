@@ -9,23 +9,9 @@
     Swal.fire({
       icon: 'success',
       title: 'Usuarios y Roles',
-      text: @json(session('success')),
+      text: '{{ session("success") }}',
       confirmButtonText: 'OK',
       confirmButtonColor: '#007bff'
-    });
-  });
-</script>
-@endif
-
-@if (session('error'))
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: @json(session('error')),
-      confirmButtonText: 'Entendido',
-      confirmButtonColor: '#d33'
     });
   });
 </script>
@@ -53,7 +39,7 @@
         <label>Mostrar</label>
         <select name="registros" onchange="this.form.submit()">
           @foreach([5, 10, 15] as $opcion)
-            <option value="{{ $opcion }}" {{ (int)request('registros', 10) == $opcion ? 'selected' : '' }}>{{ $opcion }}</option>
+            <option value="{{ $opcion }}" {{ request('registros', 5) == $opcion ? 'selected' : '' }}>{{ $opcion }}</option>
           @endforeach
         </select>
         <span>registros</span>
@@ -74,53 +60,34 @@
         </tr>
       </thead>
       <tbody id="cuerpoTabla">
-        @forelse ($usuarios_roles as $u)
-          @php
-            // Compatibilidad array/objeto
-            $id         = data_get($u, 'id');
-            $name       = data_get($u, 'name');
-            $email      = data_get($u, 'email');
-            $estado     = strtoupper((string) data_get($u, 'estado', 'INACTIVO'));
-            $roleId     = data_get($u, 'role_id'); // puede venir null
-            $nombreRol  = data_get($u, 'nombre_rol', 'SIN ROL');
-            // La API no trae created_at; usamos id como proxy para ordenar por "fecha"
-            $fechaKey   = data_get($u, 'created_at', $id);
-          @endphp
-          <tr data-nombre="{{ strtoupper($name) }}" data-fecha="{{ $fechaKey }}">
-            <td>{{ $name }}</td>
-            <td>{{ $email }}</td>
-            <td>{{ $nombreRol ?: 'SIN ROL' }}</td>
-            <td>
-              @if($estado === 'ACTIVO')
-                <span class="badge-success">ACTIVO</span>
-              @else
-                <span class="badge-inactivo">INACTIVO</span>
-              @endif
-            </td>
-            <td class="acciones-botones">
-              <button
-                type="button"
-                class="btn btn-warning btn-accion btn-editar-rol"
-                data-id="{{ $id }}"
-                data-rol="{{ $roleId }}"
-                data-estado="{{ $estado }}"
-                data-modo="{{ $roleId ? 'editar' : 'asignar' }}">
-                {{ $roleId ? 'Editar' : 'Asignar' }}
-              </button>
-
-              <form method="POST" action="{{ route('usuarios_roles.eliminar', $id) }}" class="form-eliminar" style="display:inline;">
-                @csrf
-                @method('DELETE')
-                <button type="button" class="btn btn-danger btn-accion btn-eliminar" data-id="{{ $id }}">
-                  Eliminar
-                </button>
-              </form>
-            </td>
-          </tr>
+        @forelse ($usuarios_roles as $usuario)
+        <tr data-nombre="{{ strtoupper($usuario->name) }}" data-fecha="{{ $usuario->created_at }}">
+          <td>{{ $usuario->name }}</td>
+          <td>{{ $usuario->email }}</td>
+          <td>{{ $usuario->nombre_rol ?? 'SIN ROL' }}</td>
+          <td>
+            @if(strtoupper($usuario->estado) === 'ACTIVO')
+              <span class="badge-success">ACTIVO</span>
+            @else
+              <span class="badge-inactivo">INACTIVO</span>
+            @endif
+          </td>
+          <td class="acciones-botones">
+            <button 
+              type="button"
+              class="btn {{ $usuario->role_id ? 'btn-warning' : 'btn-asignar' }} btn-editar-rol"
+              data-id="{{ $usuario->id }}"
+              data-rol="{{ $usuario->role_id }}"
+              data-estado="{{ $usuario->estado }}"
+              data-modo="{{ $usuario->role_id ? 'editar' : 'asignar' }}">
+              {{ $usuario->role_id ? 'Editar Rol' : 'Asignar Rol' }}
+            </button>
+          </td>
+        </tr>
         @empty
-          <tr>
-            <td colspan="5" class="text-center">No hay usuarios registrados.</td>
-          </tr>
+        <tr>
+          <td colspan="5" class="text-center">No hay usuarios registrados.</td>
+        </tr>
         @endforelse
       </tbody>
     </table>
@@ -210,27 +177,36 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.addEventListener('click', (e) => {
-    if (e.target === modal) modal.style.display = 'none';
+    if (e.target === modal) {
+      modal.style.display = 'none';
+    }
   });
 
   // Búsqueda en tiempo real
   campoBusqueda.addEventListener('input', () => {
-    const valor = campoBusqueda.value.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, '').substring(0, 40);
+    const valor = campoBusqueda.value.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ]/g, '').substring(0, 25);
     campoBusqueda.value = valor;
+
     filtrarYOrdenar();
   });
 
   ordenarSelect.addEventListener('change', filtrarYOrdenar);
 
   function filtrarYOrdenar() {
-    const filtro = (campoBusqueda.value || '').toUpperCase();
+    const filtro = campoBusqueda.value;
     const criterio = ordenarSelect.value;
 
-    let filtradas = filasOriginales.filter(fila => (fila.dataset.nombre || '').includes(filtro));
+    let filtradas = filasOriginales.filter(fila =>
+      fila.dataset.nombre.includes(filtro)
+    );
 
     filtradas.sort((a, b) => {
-      if (criterio === 'nombre') return (a.dataset.nombre || '').localeCompare(b.dataset.nombre || '');
-      if (criterio === 'fecha') return (new Date(b.dataset.fecha) - new Date(a.dataset.fecha)) || (parseInt(b.dataset.fecha) - parseInt(a.dataset.fecha));
+      if (criterio === 'nombre') {
+        return a.dataset.nombre.localeCompare(b.dataset.nombre);
+      }
+      if (criterio === 'fecha') {
+        return new Date(b.dataset.fecha) - new Date(a.dataset.fecha);
+      }
       return 0;
     });
 
@@ -238,48 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
     filtradas.forEach(f => cuerpoTabla.appendChild(f));
     paginacion.style.display = filtro ? 'none' : 'block';
   }
-
-  // Eliminar usuario con confirmación
-  document.querySelectorAll('.btn-eliminar').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const form = btn.closest('.form-eliminar');
-
-      Swal.fire({
-        title: '¿Eliminar usuario?',
-        text: 'Esta acción no se puede deshacer.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#6c757d'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          form.submit();
-        }
-      });
-    });
-  });
 });
 </script>
-
-<style>
-.btn-accion {
-  width: 100px;
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 6px 0;
-  transition: all 0.2s ease;
-}
-.btn-accion:hover { transform: scale(1.05); }
-.badge-success {
-  background-color: #28a745; color: #fff; padding: 4px 10px;
-  border-radius: 12px; font-weight: 600;
-}
-.badge-inactivo {
-  background-color: #dc3545; color: #fff; padding: 4px 10px;
-  border-radius: 12px; font-weight: 600;
-}
-</style>
 @endsection

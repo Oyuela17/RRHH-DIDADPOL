@@ -1030,18 +1030,17 @@ app.get('/api/roles/:id', async (req, res) => {
   }
 });
 
-// Crear nuevo rol (normalizando estado)
+// Crear nuevo rol (con estado)
 app.post('/api/roles', async (req, res) => {
   const { nombre, descripcion, estado } = req.body;
   if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
 
   try {
     const ahora = new Date().toISOString();
-    const estadoNorm = (estado || 'ACTIVO').toString().toUpperCase();
     const nuevo = await pool.query(
       `INSERT INTO roles (nombre, descripcion, estado, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $4) RETURNING *`,
-      [nombre, descripcion || '', estadoNorm, ahora]
+      [nombre, descripcion || '', estado || 'Activo', ahora]
     );
     res.status(201).json({ mensaje: 'Rol creado exitosamente', rol: nuevo.rows[0] });
   } catch (error) {
@@ -1050,19 +1049,16 @@ app.post('/api/roles', async (req, res) => {
   }
 });
 
-// Actualizar rol (normalizando estado)
+// Actualizar rol (incluye estado)
 app.put('/api/roles/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, descripcion, estado } = req.body;
 
   try {
     const ahora = new Date().toISOString();
-    const estadoNorm = (estado || 'ACTIVO').toString().toUpperCase();
     const actualizado = await pool.query(
-      `UPDATE roles
-       SET nombre = $1, descripcion = $2, estado = $3, updated_at = $4
-       WHERE id = $5 RETURNING *`,
-      [nombre, descripcion || '', estadoNorm, ahora, id]
+      `UPDATE roles SET nombre = $1, descripcion = $2, estado = $3, updated_at = $4 WHERE id = $5 RETURNING *`,
+      [nombre, descripcion || '', estado || 'Activo', ahora, id]
     );
 
     if (actualizado.rowCount === 0) {
@@ -1094,24 +1090,14 @@ app.delete('/api/roles/:id', async (req, res) => {
   }
 });
 
-
-// ✅ USUARIOS + ROL
-
-// Obtener todos los usuarios con su rol (1 fila por usuario; muestra SIN ROL)
+// Obtener todos los usuarios con su rol y estado
 app.get('/api/usuarios', async (req, res) => {
   try {
     const resultado = await pool.query(`
-      SELECT
-        u.id,
-        u.name,
-        u.email,
-        u.estado,
-        COALESCE(MAX(r.nombre), 'SIN ROL') AS nombre_rol,
-        MAX(r.id) AS role_id
+      SELECT u.id, u.name, u.email, u.estado, r.nombre AS nombre_rol, r.id AS role_id
       FROM users u
       LEFT JOIN role_user ru ON ru.user_id = u.id
       LEFT JOIN roles r ON r.id = ru.role_id
-      GROUP BY u.id, u.name, u.email, u.estado
       ORDER BY u.id;
     `);
     res.json(resultado.rows);
@@ -1120,6 +1106,7 @@ app.get('/api/usuarios', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 
 // Cambiar estado del usuario
 app.put('/api/usuarios/:id/estado', async (req, res) => {
@@ -1138,31 +1125,75 @@ app.put('/api/usuarios/:id/estado', async (req, res) => {
   }
 });
 
-// 🔁 ÚNICO flujo para rol: UPSERT (1 rol por usuario)
-// Requiere: índice único en role_user(user_id)
+
+// Cambiar el rol de un usuario
+app.put('/api/usuarios/:id/rol', async (req, res) => {
+  const { id } = req.params;
+  const { nuevoRolId } = req.body;
+
+  try {
+    await pool.query('UPDATE role_user SET role_id = $1, created_at = NOW() WHERE user_id = $2', [nuevoRolId, id]);
+    res.json({ message: 'Rol asignado correctamente' });
+  } catch (err) {
+    console.error('Error al asignar rol:', err);
+    res.status(500).json({ error: 'No se pudo asignar el rol' });
+  }
+});
+// Asignar un nuevo rol (solo si aún no existe)
+app.post('/api/usuarios/:id/rol', async (req, res) => {
+  const { id } = req.params;
+  const { role_id } = req.body;
+
+  if (!role_id || isNaN(role_id)) {
+    return res.status(400).json({ error: 'El role_id es obligatorio y debe ser un número válido' });
+  }
+
+  try {
+    const existe = await pool.query('SELECT * FROM role_user WHERE user_id = $1', [id]);
+
+    if (existe.rowCount > 0) {
+      return res.status(409).json({ error: 'El usuario ya tiene un rol asignado. Usa PUT para editarlo.' });
+    }
+
+    await pool.query(
+      'INSERT INTO role_user (user_id, role_id, created_at) VALUES ($1, $2, NOW())',
+      [id, role_id]
+    );
+
+    res.json({ message: '✅ Rol asignado correctamente por primera vez.' });
+  } catch (err) {
+    console.error('❌ Error al asignar nuevo rol:', err);
+    res.status(500).json({ error: 'No se pudo asignar el rol.' });
+  }
+});
+
+// Editar rol existente
 app.put('/api/usuarios/:id/rol', async (req, res) => {
   const { id } = req.params;
   const { role_id } = req.body;
 
   if (!role_id || isNaN(role_id)) {
-    return res.status(400).json({ error: 'El role_id es obligatorio y debe ser numérico' });
+    return res.status(400).json({ error: 'El role_id es obligatorio y debe ser un número válido' });
   }
 
   try {
-    await pool.query(`
-      INSERT INTO role_user (user_id, role_id, created_at, updated_at)
-      VALUES ($1, $2, NOW(), NOW())
-      ON CONFLICT (user_id)
-      DO UPDATE SET role_id = EXCLUDED.role_id, updated_at = NOW();
-    `, [id, role_id]);
+    const existe = await pool.query('SELECT * FROM role_user WHERE user_id = $1', [id]);
 
-    res.json({ message: 'Rol asignado/actualizado correctamente.' });
+    if (existe.rowCount === 0) {
+      return res.status(404).json({ error: 'El usuario no tiene un rol asignado. Usa POST para asignarlo.' });
+    }
+
+    await pool.query(
+      'UPDATE role_user SET role_id = $1, created_at = NOW() WHERE user_id = $2',
+      [role_id, id]
+    );
+
+    res.json({ message: '✅ Rol actualizado correctamente.' });
   } catch (err) {
-    console.error('❌ Error al asignar/actualizar rol:', err);
-    res.status(500).json({ error: 'No se pudo asignar/actualizar el rol.' });
+    console.error('❌ Error al actualizar rol:', err);
+    res.status(500).json({ error: 'No se pudo actualizar el rol.' });
   }
 });
-
 
 // ========================
 // MODULOS - Obtener todos

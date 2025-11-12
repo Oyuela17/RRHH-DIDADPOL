@@ -148,7 +148,6 @@ Route::put('/roles/{id}/estado', [RoleController::class, 'actualizarEstado']);
 
 Route::get('/usuarios_roles', [UserRoleController::class, 'index'])->name('usuarios_roles.index');
 Route::post('/usuarios_roles/asignar/{id}', [UserRoleController::class, 'asignar'])->name('usuarios_roles.asignar');
-Route::delete('/usuarios_roles/eliminar/{id}', [UserRoleController::class, 'eliminar'])->name('usuarios_roles.eliminar');
 Route::middleware('auth')->post('/verificar-estado', [EstadoUsuarioController::class, 'verificarEstado']);
 
 // permisos

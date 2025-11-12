@@ -13,7 +13,6 @@ const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
 const archiver = require('archiver');
 const dayjs = require('dayjs');
-const axios = require('axios');
 
 const app = express();
 app.use(cors());
@@ -485,115 +484,36 @@ const quitarAcentos = (texto) => {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/Ñ/g, "N");
 };
 
-
-// 🔧 Normalizar correos (lowercase + trim)
-const normalizarEmail = (email) => (email || '').toLowerCase().trim();
-
-// 🔧 Generar correo institucional único (con fallback numerado)
-const generarCorreoInstitucional = async (nombreCompleto, pool) => {
-  const limpio = quitarAcentos((nombreCompleto || '').toUpperCase()).trim();
-  const partes = limpio.split(/\s+/).filter(Boolean);
-
-  if (partes.length < 2) {
-    // fallback si solo viene un nombre
-    let base = 'usuario';
-    let correo = `${base}@didadpol.gob.hn`;
-    let contador = 1;
-    while (true) {
-      const { rows } = await pool.query('SELECT 1 FROM users WHERE email = $1 LIMIT 1', [correo]);
-      if (rows.length === 0) break;
-      correo = `${base}${contador}@didadpol.gob.hn`;
-      contador++;
-    }
-    return correo;
-  }
-
-  const inicial = partes[0][0];                     // primera letra del primer nombre
-  const primerApellido = partes[2] || partes[1];    // si hay 2 apellidos toma el primero, si no, el único
-  let base = (inicial + primerApellido).toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (!base) base = 'usuario';
-
-  let correo = `${base}@didadpol.gob.hn`;
-  let contador = 1;
-
-  while (true) {
-    const { rows } = await pool.query('SELECT 1 FROM users WHERE email = $1 LIMIT 1', [correo]);
-    if (rows.length === 0) break;
-    correo = `${base}${contador}@didadpol.gob.hn`;
-    contador++;
-  }
-  return correo;
-};
-
-/**
- * 📌 Decide qué correo usar según banderas de la petición.
- * 
- * @param {Object} opts
- * @param {string} opts.nombreCompleto
- * @param {string} [opts.correoPersonal] - si el usuario quiere usar su correo
- * @param {boolean} [opts.usarCorreoInstitucional=true] - toggle principal
- * @param {boolean} [opts.fallbackInstitucionalSiDuplicado=false] - si el correo personal ya existe, ¿caer a institucional?
- * @param {Pool} pool
- * @returns {Promise<string>} email elegido (único garantizado)
- * @throws si se elige correo personal duplicado y no se permite fallback
- */
-const elegirCorreoParaRegistro = async ({
-  nombreCompleto,
-  correoPersonal,
-  usarCorreoInstitucional = true,
-  fallbackInstitucionalSiDuplicado = false
-}, pool) => {
-
-  if (usarCorreoInstitucional) {
-    // Siempre creamos uno institucional único
-    return await generarCorreoInstitucional(nombreCompleto, pool);
-  }
-
-  // Caso: usar correo personal
-  const email = normalizarEmail(correoPersonal);
-  if (!email) throw new Error('El correo personal es requerido cuando usarCorreoInstitucional = false.');
-
-  // ¿Existe ya?
-  const existe = await pool.query('SELECT 1 FROM users WHERE email = $1 LIMIT 1', [email]);
-  if (existe.rows.length > 0) {
-    if (fallbackInstitucionalSiDuplicado) {
-      // Genera institucional único y úsalo
-      return await generarCorreoInstitucional(nombreCompleto, pool);
-    }
-    // Forzamos error para que el frontend avise y el usuario cambie de correo
-    const err = new Error(`El correo ${email} ya está registrado.`);
-    err.code = 'EMAIL_DUPLICADO';
-    throw err;
-  }
-
-  return email; // correo personal válido y disponible
-};
-
 // ==========================
-// REGISTRAR USUARIO + ENVIAR CORREO (versión corregida)
+// REGISTRAR USUARIO (personal o institucional)
 // ==========================
+const crypto = require('crypto');
 
 const WEB_BASE_URL = process.env.WEB_BASE_URL || 'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
 
+// Normalizar correo
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
 app.post('/api/registrar-usuario', async (req, res) => {
-  const { nombre_completo, correo_personal, cod_persona } = req.body;
+  const {
+    nombre_completo,
+    correo_personal,
+    cod_persona,
+    usar_correo_institucional = true // 👈 bandera controlada desde el frontend
+  } = req.body;
 
-  // 1) Validación de entrada
   if (!nombre_completo || !correo_personal || !cod_persona) {
     return res.status(400).json({
-      error: 'Todos los campos son requeridos: nombre_completo, correo_personal, cod_persona'
+      error: 'Todos los campos son requeridos: nombre_completo, correo_personal y cod_persona'
     });
   }
 
   const nombre = String(nombre_completo).trim();
   const correoPersonal = normalizeEmail(correo_personal);
-  const ahoraISO = new Date().toISOString();
+  const ahora = new Date().toISOString();
 
-  // Validación simple del correo
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoPersonal)) {
     return res.status(400).json({ error: 'El correo personal no tiene un formato válido.' });
   }
@@ -602,72 +522,61 @@ app.post('/api/registrar-usuario', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 2) ¿cod_persona ya está registrado?
-    const persona = await client.query(
+    // 1️⃣ Verificar si la persona ya tiene usuario
+    const existePersona = await client.query(
       'SELECT id FROM users WHERE cod_persona = $1 LIMIT 1',
       [cod_persona]
     );
-    if (persona.rowCount > 0) {
+    if (existePersona.rowCount > 0) {
       await client.query('ROLLBACK');
-      return res.status(409).json({
-        error: `El código de persona ${cod_persona} ya tiene un usuario registrado.`
-      });
+      return res.status(409).json({ error: `La persona con código ${cod_persona} ya tiene un usuario registrado.` });
     }
 
-    // 3) (opcional) Chequear si el correo personal ya está usado como institucional de alguien
-    //    No siempre aplica, pero evita mandar enlace a un correo que coincide con otro usuario.email
-    const correoPersonalEnUso = await client.query(
-      'SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1',
-      [correoPersonal]
-    );
-    if (correoPersonalEnUso.rowCount > 0) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({
-        error: `El correo ${correoPersonal} ya está registrado como correo de usuario.`
-      });
+    // 2️⃣ Determinar correo a usar
+    let correoFinal;
+    if (usar_correo_institucional) {
+      correoFinal = await generarCorreoInstitucional(nombre, client);
+    } else {
+      // validar duplicado
+      const existeCorreo = await client.query(
+        'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+        [correoPersonal]
+      );
+      if (existeCorreo.rowCount > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: `El correo ${correoPersonal} ya está registrado.`
+        });
+      }
+      correoFinal = correoPersonal;
     }
 
-    // 4) Generar correo institucional único (la función ya verifica que no exista en users.email)
-    const correoInstitucional = (await generarCorreoInstitucional(nombre)).toLowerCase();
-
-    // 5) (defensivo) Doble verificación institucional por si hay carrera
-    const instEnUso = await client.query(
-      'SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1',
-      [correoInstitucional]
-    );
-    if (instEnUso.rowCount > 0) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({
-        error: `El correo institucional ${correoInstitucional} ya está registrado.`
-      });
-    }
-
-    // 6) Insertar usuario (password vacío por ahora)
+    // 3️⃣ Insertar usuario (sin contraseña todavía)
     const nuevoUsuario = await client.query(
       `INSERT INTO users (name, email, password, created_at, updated_at, cod_persona)
        VALUES ($1, $2, $3, $4, $4, $5)
        RETURNING id`,
-      [nombre, correoInstitucional, '', ahoraISO, cod_persona]
+      [nombre, correoFinal, '', ahora, cod_persona]
     );
+
     const userId = nuevoUsuario.rows[0].id;
 
-    // 7) Generar token para definir contraseña (24h)
+    // 4️⃣ Generar token (24h)
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // Higiene: eliminar tokens previos de ese user
+    // limpiar tokens previos
     await client.query('DELETE FROM password_tokens WHERE user_id = $1', [userId]);
-
     await client.query(
       `INSERT INTO password_tokens (user_id, token, expires_at, created_at)
        VALUES ($1, $2, $3, NOW())`,
-      [userId, token, expiresAt]
+      [userId, token, expires]
     );
 
-    // 8) Construir link FRONT
-    const link = `${WEB_BASE_URL}/definir-contrasena?token=${encodeURIComponent(token)}&email=${encodeURIComponent(correoInstitucional)}`;
+    // 5️⃣ Enlace al FRONT
+    const link = `${WEB_BASE_URL}/definir-contrasena?token=${encodeURIComponent(token)}&email=${encodeURIComponent(correoFinal)}`;
 
-    // 9) Enviar correo con Brevo (al correo personal)
+    // 6️⃣ Plantilla del correo
     const html = `
       <div style="max-width: 600px; margin: auto; border-radius: 8px; overflow: hidden; font-family: Arial, sans-serif;">
         <div style="background-color: #003366; padding: 20px; text-align: center;">
@@ -677,8 +586,8 @@ app.post('/api/registrar-usuario', async (req, res) => {
           <h2 style="color: #003366;">Hola ${nombre}</h2>
           <p style="font-size: 16px;">Has sido registrado(a) en el sistema de Recursos Humanos de <strong>DIDADPOL</strong>.</p>
           <p style="font-size: 16px; margin-top: 15px;">
-            <strong>Tu correo institucional es:</strong>
-            <a href="mailto:${correoInstitucional}" style="color: #0056b3;">${correoInstitucional}</a>
+            <strong>Tu correo de acceso es:</strong>
+            <a href="mailto:${correoFinal}" style="color: #0056b3;">${correoFinal}</a>
           </p>
           <p style="font-size: 16px; margin-top: 20px;">Haz clic en el siguiente botón para definir tu contraseña:</p>
           <div style="text-align: center; margin: 30px 0;">
@@ -701,45 +610,44 @@ app.post('/api/registrar-usuario', async (req, res) => {
       </div>
     `;
 
-    const envio = await enviarCorreoBrevo(correoPersonal, 'Definir tu contraseña institucional', html);
+    // 7️⃣ Enviar correo (al correo personal siempre)
+    const envio = await enviarCorreoBrevo(
+      correoPersonal,
+      'Definir tu contraseña de acceso - DIDADPOL',
+      html
+    );
 
     if (!envio.ok) {
-      // Si el correo falla, revertimos todo para no dejar usuario sin poder activar
       await client.query('ROLLBACK');
-      return res.status(502).json({
-        error: 'No se pudo enviar el correo de definición de contraseña.',
-        detalle: envio.error || 'Error al enviar correo'
-      });
+      return res.status(502).json({ error: 'No se pudo enviar el correo de definición de contraseña.' });
     }
 
     await client.query('COMMIT');
 
-    // Seguridad: no retornar el token
     return res.status(201).json({
-      mensaje: 'Usuario registrado correctamente. Se envió un correo con el enlace para definir la contraseña.',
-      correo_institucional: correoInstitucional
+      mensaje: usar_correo_institucional
+        ? 'Usuario creado con correo institucional. Enlace enviado al correo personal.'
+        : 'Usuario creado con correo personal. Enlace enviado.',
+      correo_final: correoFinal
     });
 
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('❌ Error al registrar usuario:', error);
 
-    // Mapeo de violaciones UNIQUE
     if (error.code === '23505') {
-      // Ej: uq_users_cod_persona o unique(email)
-      return res.status(409).json({
-        error: 'Ya existe un usuario con ese correo o código de persona.'
-      });
+      return res.status(409).json({ error: 'Ya existe un usuario con ese correo o código de persona.' });
     }
 
     return res.status(500).json({
-      error: 'Error al registrar usuario',
+      error: 'Error interno al registrar usuario',
       detalle: error.message
     });
   } finally {
     client.release();
   }
 });
+
 
 // ==========================
 // DEFINIR CONTRASEÑA
@@ -790,6 +698,8 @@ app.post('/api/definir-contrasena', async (req, res) => {
     res.status(500).json({ error: 'Error al definir contraseña', detalle: error.message });
   }
 });
+
+
 
 // ==========================
 // RECUPERAR CONTRASEÑA

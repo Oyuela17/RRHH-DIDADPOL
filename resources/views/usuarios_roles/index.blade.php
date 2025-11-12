@@ -9,7 +9,7 @@
     Swal.fire({
       icon: 'success',
       title: 'Usuarios y Roles',
-      text: '{{ session("success") }}',
+      text: @json(session('success')),
       confirmButtonText: 'OK',
       confirmButtonColor: '#007bff'
     });
@@ -23,7 +23,7 @@
     Swal.fire({
       icon: 'error',
       title: 'Error',
-      text: '{{ session("error") }}',
+      text: @json(session('error')),
       confirmButtonText: 'Entendido',
       confirmButtonColor: '#d33'
     });
@@ -53,7 +53,7 @@
         <label>Mostrar</label>
         <select name="registros" onchange="this.form.submit()">
           @foreach([5, 10, 15] as $opcion)
-            <option value="{{ $opcion }}" {{ request('registros', 5) == $opcion ? 'selected' : '' }}>{{ $opcion }}</option>
+            <option value="{{ $opcion }}" {{ (int)request('registros', 10) == $opcion ? 'selected' : '' }}>{{ $opcion }}</option>
           @endforeach
         </select>
         <span>registros</span>
@@ -74,42 +74,53 @@
         </tr>
       </thead>
       <tbody id="cuerpoTabla">
-        @forelse ($usuarios_roles as $usuario)
-        <tr data-nombre="{{ strtoupper($usuario->name) }}" data-fecha="{{ $usuario->created_at }}">
-          <td>{{ $usuario->name }}</td>
-          <td>{{ $usuario->email }}</td>
-          <td>{{ $usuario->nombre_rol ?? 'SIN ROL' }}</td>
-          <td>
-            @if(strtoupper($usuario->estado) === 'ACTIVO')
-              <span class="badge-success">ACTIVO</span>
-            @else
-              <span class="badge-inactivo">INACTIVO</span>
-            @endif
-          </td>
-          <td class="acciones-botones">
-            <button 
-              type="button"
-              class="btn btn-warning btn-accion btn-editar-rol"
-              data-id="{{ $usuario->id }}"
-              data-rol="{{ $usuario->role_id }}"
-              data-estado="{{ $usuario->estado }}"
-              data-modo="{{ $usuario->role_id ? 'editar' : 'asignar' }}">
-              {{ $usuario->role_id ? 'Editar' : 'Asignar' }}
-            </button>
-
-            <form method="POST" action="{{ route('usuarios_roles.eliminar', $usuario->id) }}" class="form-eliminar" style="display:inline;">
-              @csrf
-              @method('DELETE')
-              <button type="button" class="btn btn-danger btn-accion btn-eliminar" data-id="{{ $usuario->id }}">
-                Eliminar
+        @forelse ($usuarios_roles as $u)
+          @php
+            // Compatibilidad array/objeto
+            $id         = data_get($u, 'id');
+            $name       = data_get($u, 'name');
+            $email      = data_get($u, 'email');
+            $estado     = strtoupper((string) data_get($u, 'estado', 'INACTIVO'));
+            $roleId     = data_get($u, 'role_id'); // puede venir null
+            $nombreRol  = data_get($u, 'nombre_rol', 'SIN ROL');
+            // La API no trae created_at; usamos id como proxy para ordenar por "fecha"
+            $fechaKey   = data_get($u, 'created_at', $id);
+          @endphp
+          <tr data-nombre="{{ strtoupper($name) }}" data-fecha="{{ $fechaKey }}">
+            <td>{{ $name }}</td>
+            <td>{{ $email }}</td>
+            <td>{{ $nombreRol ?: 'SIN ROL' }}</td>
+            <td>
+              @if($estado === 'ACTIVO')
+                <span class="badge-success">ACTIVO</span>
+              @else
+                <span class="badge-inactivo">INACTIVO</span>
+              @endif
+            </td>
+            <td class="acciones-botones">
+              <button
+                type="button"
+                class="btn btn-warning btn-accion btn-editar-rol"
+                data-id="{{ $id }}"
+                data-rol="{{ $roleId }}"
+                data-estado="{{ $estado }}"
+                data-modo="{{ $roleId ? 'editar' : 'asignar' }}">
+                {{ $roleId ? 'Editar' : 'Asignar' }}
               </button>
-            </form>
-          </td>
-        </tr>
+
+              <form method="POST" action="{{ route('usuarios_roles.eliminar', $id) }}" class="form-eliminar" style="display:inline;">
+                @csrf
+                @method('DELETE')
+                <button type="button" class="btn btn-danger btn-accion btn-eliminar" data-id="{{ $id }}">
+                  Eliminar
+                </button>
+              </form>
+            </td>
+          </tr>
         @empty
-        <tr>
-          <td colspan="5" class="text-center">No hay usuarios registrados.</td>
-        </tr>
+          <tr>
+            <td colspan="5" class="text-center">No hay usuarios registrados.</td>
+          </tr>
         @endforelse
       </tbody>
     </table>
@@ -204,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Búsqueda en tiempo real
   campoBusqueda.addEventListener('input', () => {
-    const valor = campoBusqueda.value.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ]/g, '').substring(0, 25);
+    const valor = campoBusqueda.value.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, '').substring(0, 40);
     campoBusqueda.value = valor;
     filtrarYOrdenar();
   });
@@ -212,16 +223,14 @@ document.addEventListener('DOMContentLoaded', () => {
   ordenarSelect.addEventListener('change', filtrarYOrdenar);
 
   function filtrarYOrdenar() {
-    const filtro = campoBusqueda.value;
+    const filtro = (campoBusqueda.value || '').toUpperCase();
     const criterio = ordenarSelect.value;
 
-    let filtradas = filasOriginales.filter(fila =>
-      fila.dataset.nombre.includes(filtro)
-    );
+    let filtradas = filasOriginales.filter(fila => (fila.dataset.nombre || '').includes(filtro));
 
     filtradas.sort((a, b) => {
-      if (criterio === 'nombre') return a.dataset.nombre.localeCompare(b.dataset.nombre);
-      if (criterio === 'fecha') return new Date(b.dataset.fecha) - new Date(a.dataset.fecha);
+      if (criterio === 'nombre') return (a.dataset.nombre || '').localeCompare(b.dataset.nombre || '');
+      if (criterio === 'fecha') return (new Date(b.dataset.fecha) - new Date(a.dataset.fecha)) || (parseInt(b.dataset.fecha) - parseInt(a.dataset.fecha));
       return 0;
     });
 
@@ -263,22 +272,14 @@ document.addEventListener('DOMContentLoaded', () => {
   padding: 6px 0;
   transition: all 0.2s ease;
 }
-.btn-accion:hover {
-  transform: scale(1.05);
-}
+.btn-accion:hover { transform: scale(1.05); }
 .badge-success {
-  background-color: #28a745;
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-weight: 600;
+  background-color: #28a745; color: #fff; padding: 4px 10px;
+  border-radius: 12px; font-weight: 600;
 }
 .badge-inactivo {
-  background-color: #dc3545;
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-weight: 600;
+  background-color: #dc3545; color: #fff; padding: 4px 10px;
+  border-radius: 12px; font-weight: 600;
 }
 </style>
 @endsection

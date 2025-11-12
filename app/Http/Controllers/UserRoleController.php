@@ -32,7 +32,7 @@ class UserRoleController extends Controller
             $orden = 'nombre';
         }
 
-        // ✅ Consulta robusta con alias y COALESCE (garantiza mostrar todos los usuarios)
+        // ✅ Consulta definitiva: LEFT JOIN forzado con DB::raw
         $usuarios_roles = DB::table('users as u')
             ->select(
                 'u.id',
@@ -43,8 +43,9 @@ class UserRoleController extends Controller
                 DB::raw("r.id as role_id"),
                 'u.created_at'
             )
-            ->leftJoin('role_user as ru', 'ru.user_id', '=', 'u.id')
-            ->leftJoin('roles as r', 'r.id', '=', 'ru.role_id')
+            ->leftJoin(DB::raw('(SELECT * FROM role_user) as ru'), 'ru.user_id', '=', 'u.id')
+            ->leftJoin(DB::raw('(SELECT * FROM roles) as r'), 'r.id', '=', 'ru.role_id')
+            ->whereRaw('1=1') // evita filtrado implícito de nulos
             ->when($busqueda !== '', function ($query) use ($busqueda) {
                 return $query->whereRaw("UPPER(u.name) LIKE ?", ["%{$busqueda}%"]);
             })

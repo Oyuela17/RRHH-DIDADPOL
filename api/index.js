@@ -485,25 +485,36 @@ const quitarAcentos = (texto) => {
 };
 
 // ==========================
-// REGISTRAR USUARIO (personal o institucional)
+// CONFIG GLOBAL (fuera del handler)
 // ==========================
 
-// Normalizar correo
+// Base del FRONT (Laravel) para construir el link
+const WEB_BASE_URL =
+  process.env.WEB_BASE_URL ||
+  process.env.FRONTEND_URL ||
+  'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
+
+console.log('[ENV] WEB_BASE_URL =', WEB_BASE_URL);
+
+// Helper: normalizar correo
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+// ==========================
+// REGISTRAR USUARIO (personal o institucional)
+// ==========================
 app.post('/api/registrar-usuario', async (req, res) => {
   const {
     nombre_completo,
     correo_personal,
     cod_persona,
-    usar_correo_institucional = true // 👈 bandera controlada desde el frontend
+    usar_correo_institucional = true, // bandera desde el front
   } = req.body;
 
   if (!nombre_completo || !correo_personal || !cod_persona) {
     return res.status(400).json({
-      error: 'Todos los campos son requeridos: nombre_completo, correo_personal y cod_persona'
+      error: 'Todos los campos son requeridos: nombre_completo, correo_personal y cod_persona',
     });
   }
 
@@ -519,22 +530,25 @@ app.post('/api/registrar-usuario', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // 1️⃣ Verificar si la persona ya tiene usuario
+    // 1) Verificar si la persona ya tiene usuario
     const existePersona = await client.query(
       'SELECT id FROM users WHERE cod_persona = $1 LIMIT 1',
       [cod_persona]
     );
     if (existePersona.rowCount > 0) {
       await client.query('ROLLBACK');
-      return res.status(409).json({ error: `La persona con código ${cod_persona} ya tiene un usuario registrado.` });
+      return res
+        .status(409)
+        .json({ error: `La persona con código ${cod_persona} ya tiene un usuario registrado.` });
     }
 
-    // 2️⃣ Determinar correo a usar
+    // 2) Determinar correo final
     let correoFinal;
     if (usar_correo_institucional) {
+      // usa el mismo client (transacción)
       correoFinal = await generarCorreoInstitucional(nombre, client);
     } else {
-      // validar duplicado
+      // Validar duplicado de correo personal
       const existeCorreo = await client.query(
         'SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
         [correoPersonal]
@@ -542,47 +556,39 @@ app.post('/api/registrar-usuario', async (req, res) => {
       if (existeCorreo.rowCount > 0) {
         await client.query('ROLLBACK');
         return res.status(409).json({
-          error: `El correo ${correoPersonal} ya está registrado.`
+          error: `El correo ${correoPersonal} ya está registrado.`,
         });
       }
       correoFinal = correoPersonal;
     }
 
-    // 3️⃣ Insertar usuario (sin contraseña todavía)
+    // 3) Insertar usuario (sin contraseña aún)
     const nuevoUsuario = await client.query(
       `INSERT INTO users (name, email, password, created_at, updated_at, cod_persona)
        VALUES ($1, $2, $3, $4, $4, $5)
        RETURNING id`,
-      [nombre, correoFinal, '', ahora, cod_persona]
+      [nombre, correoFinal.toLowerCase(), '', ahora, cod_persona]
     );
-
     const userId = nuevoUsuario.rows[0].id;
 
-    // 4️⃣ Generar token (24h)
+    // 4) Token de definición de contraseña (24h)
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // limpiar tokens previos
+    // Limpiar tokens previos e insertar
     await client.query('DELETE FROM password_tokens WHERE user_id = $1', [userId]);
     await client.query(
       `INSERT INTO password_tokens (user_id, token, expires_at, created_at)
        VALUES ($1, $2, $3, NOW())`,
       [userId, token, expires]
     );
-   //  Definir base del FRONT (Laravel)
-   const WEB_BASE_URL =
-   process.env.WEB_BASE_URL ||
-   process.env.FRONTEND_URL || // por si tenías otro nombre
-  'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
 
-   // (opcional) visibilidad en logs al iniciar:
-   console.log('[ENV] WEB_BASE_URL =', WEB_BASE_URL);
+    // 5) Enlace al FRONT
+    const link = `${WEB_BASE_URL}/definir-contrasena?token=${encodeURIComponent(
+      token
+    )}&email=${encodeURIComponent(correoFinal)}`;
 
-
-    // 5️⃣ Enlace al FRONT
-    const link = `${WEB_BASE_URL}/definir-contrasena?token=${encodeURIComponent(token)}&email=${encodeURIComponent(correoFinal)}`;
-
-    // 6️⃣ Plantilla del correo
+    // 6) Plantilla del correo
     const html = `
       <div style="max-width: 600px; margin: auto; border-radius: 8px; overflow: hidden; font-family: Arial, sans-serif;">
         <div style="background-color: #003366; padding: 20px; text-align: center;">
@@ -616,16 +622,22 @@ app.post('/api/registrar-usuario', async (req, res) => {
       </div>
     `;
 
-    // 7️⃣ Enviar correo (al correo personal siempre)
+    // 7) Enviar correo con Brevo al correo personal SIEMPRE
+    if (typeof enviarCorreoBrevo !== 'function') {
+      throw new Error('enviarCorreoBrevo no está definido/importado en este archivo');
+    }
+
     const envio = await enviarCorreoBrevo(
       correoPersonal,
       'Definir tu contraseña de acceso - DIDADPOL',
       html
     );
 
-    if (!envio.ok) {
+    if (!envio || envio.ok !== true) {
       await client.query('ROLLBACK');
-      return res.status(502).json({ error: 'No se pudo enviar el correo de definición de contraseña.' });
+      return res
+        .status(502)
+        .json({ error: 'No se pudo enviar el correo de definición de contraseña.' });
     }
 
     await client.query('COMMIT');
@@ -634,20 +646,21 @@ app.post('/api/registrar-usuario', async (req, res) => {
       mensaje: usar_correo_institucional
         ? 'Usuario creado con correo institucional. Enlace enviado al correo personal.'
         : 'Usuario creado con correo personal. Enlace enviado.',
-      correo_final: correoFinal
+      correo_final: correoFinal,
     });
-
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('❌ Error al registrar usuario:', error);
 
     if (error.code === '23505') {
-      return res.status(409).json({ error: 'Ya existe un usuario con ese correo o código de persona.' });
+      return res
+        .status(409)
+        .json({ error: 'Ya existe un usuario con ese correo o código de persona.' });
     }
 
     return res.status(500).json({
       error: 'Error interno al registrar usuario',
-      detalle: error.message
+      detalle: error.message,
     });
   } finally {
     client.release();
@@ -704,8 +717,6 @@ app.post('/api/definir-contrasena', async (req, res) => {
     res.status(500).json({ error: 'Error al definir contraseña', detalle: error.message });
   }
 });
-
-
 
 // ==========================
 // RECUPERAR CONTRASEÑA

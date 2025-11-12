@@ -5,6 +5,192 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Definir Nueva Contraseña</title>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+  /* ===== Fondo institucional (igual al login) ===== */
+  html, body, .page-bg { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: linear-gradient(135deg, #005796 0%, #7faed0 100%);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-attachment: fixed;
+  }
+  .page-bg {
+    position: relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    padding: 20px;
+  }
+
+  /* ===== Tarjeta ===== */
+  .reset-card {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    padding: 24px 22px 20px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow:
+      0 12px 24px rgba(2, 6, 23, .16),
+      0 4px 10px rgba(2, 6, 23, .08);
+    animation: cardEntrance .7s cubic-bezier(.2,.8,.2,1) both;
+    overflow: hidden;                 /* 👈 nada se sale del modal */
+    box-sizing: border-box;           /* 👈 mide con padding */
+    z-index: 1;                       /* 👈 por debajo del SweetAlert */
+  }
+  @keyframes cardEntrance {
+    from { transform: translateY(8px); opacity: 0; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+  .reset-card.closing { animation: cardOut .42s cubic-bezier(.2,.8,.2,1) forwards; }
+  @keyframes cardOut { to { transform: translateY(6px); opacity: 0; } }
+
+  /* Marca de agua interna */
+  .card-watermark{
+    position:absolute; inset:0; pointer-events:none;
+    background: url("{{ asset('imagen/LOGO_OFICIAL.png') }}") no-repeat center 26%;
+    background-size: 220px auto;
+    opacity:.05;
+  }
+
+  /* ===== Header ===== */
+  .reset-header { position: relative; text-align:center; }
+  .reset-logo { height: 58px; width:auto; margin-bottom: 10px; }
+  .reset-header h1 { margin:0; font-size: 1.45rem; color:#0f172a; letter-spacing:.2px; }
+  .subtitle { margin:6px 0 0; font-size:.95rem; color:#475569; }
+
+  /* ===== Form ===== */
+  .reset-form {
+    position: relative;
+    margin-top: 16px;
+    padding: 0 6px;                   /* 👈 acolcha para que nada roce el borde */
+    box-sizing: border-box;
+  }
+  .form-group { margin-top: 14px; }
+  .password-wrapper { position: relative; }
+
+  /* Inputs */
+  .password-wrapper input{
+    width: 100%;
+    padding: 12px 44px 12px 14px;
+    font-size: 15px;
+    border: 1px solid #dbe3ee;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #0f172a;
+    transition: box-shadow .25s, border-color .25s, background .25s;
+    box-sizing: border-box;
+  }
+  .password-wrapper input::placeholder{ color:#9aa8bb; }
+  .password-wrapper input:focus{
+    outline: none;
+    border-color: #0c66a1;
+    box-shadow: 0 0 0 4px rgba(12,102,161,.12);
+  }
+
+  /* Ojo */
+  .toggle-password{
+    position:absolute; top:50%; right:12px; transform:translateY(-50%);
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+    background: transparent; border:0; padding:0;
+  }
+
+  /* Tooltip requisitos */
+  .requisitos-tooltip{
+    position:absolute; top:-8px; left:0; transform:translateY(-100%);
+    width:100%;
+    background: #ffffff; color:#0f172a;
+    border:1px solid #e2e8f0; border-radius:12px;
+    box-shadow: 0 12px 24px rgba(2,6,23,.08);
+    padding:10px 14px; font-size:13px;
+    opacity:0; pointer-events:none; transition: opacity .25s, transform .25s;
+    box-sizing: border-box;
+  }
+  .requisitos-tooltip.visible{ opacity:1; transform:translateY(calc(-100% - 6px)); }
+  .requisitos-tooltip li{ margin-bottom:4px; }
+
+  /* Mensajes inline */
+  .mensaje-inline{
+    position:absolute; right:12px; bottom:-18px;
+    font-size:12px; color: rgba(239,68,68,.95);
+    opacity:0; transition:opacity .2s; pointer-events:none;
+  }
+
+  /* ===== Barra de seguridad ===== */
+  .barra-seguridad{
+    position: relative;
+    height: 8px;
+    background: #eaf0f7;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 16px;
+    box-shadow: inset 0 0 4px rgba(2,6,23,.04);
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .nivel-seguridad{
+    --bar: #ef4444;
+    height:100%;
+    width:0%;
+    border-radius:inherit;
+    background: linear-gradient(90deg, var(--bar), rgba(255,255,255,.25));
+    transition: width .45s ease, background .3s ease;
+  }
+  .texto-seguridad{
+    margin-top: 6px;
+    font-size:13px;
+    font-weight:600;
+    color:#334155;
+  }
+
+  /* Botón */
+  .btn-primary{
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    margin-top: 18px;
+    background: linear-gradient(135deg, #f4a300, #f1bb4f);
+    color:#fff; font-weight:600; letter-spacing:.2px; cursor:pointer;
+    transition: transform .15s ease, opacity .2s ease, box-shadow .2s ease;
+    box-shadow: 0 6px 18px rgba(244,163,0,.25);
+    box-sizing: border-box;
+  }
+  .btn-primary:hover{ transform: translateY(-1px); }
+  .btn-primary:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; }
+
+  /* Nota */
+  .hint{ margin:10px 0 0; text-align:center; font-size:11px; color:#e6edf7; }
+
+  /* SweetAlert SIEMPRE por encima del modal */
+  .swal2-container{ z-index: 100000 !important; }
+
+  /* Responsive */
+  @media (max-width: 440px){
+    .reset-card{ padding:20px 16px 16px; border-radius:16px; }
+    .reset-form{ padding: 0 4px; }
+    .reset-logo{ height:52px; }
+    .card-watermark{ background-size: 170px auto; }
+  }
+
+   html, body {
+  height: 100%;
+  overflow: hidden;        
+  }
+
+   .page-bg {
+  height: 100vh;           
+  overflow: hidden;       
+ }
+
+  </style>
 </head>
 <body>
 
@@ -140,7 +326,9 @@ passwordInput.addEventListener('blur', () => requisitos.classList.remove('visibl
 
 function smoothExit() {
   cardLogin.classList.add('closing');
+  // Intento de cierre (si fue abierta por script) y fallback a /login
   setTimeout(() => {
+    try { window.open('', '_self'); } catch(e){}
     window.close();
     window.location.replace('/login');
   }, 420);
@@ -178,200 +366,38 @@ async function definirContrasena(event) {
       if (/token/i.test(msg)) titulo = 'Token inválido o expirado';
       if (/correo|email/i.test(msg)) titulo = 'Correo no registrado';
 
-      await Swal.fire({ icon: 'error', title: titulo, text: msg });
+      await Swal.fire({ icon: 'error', title: titulo, text: msg, heightAuto: false });
       btnGuardar.disabled = false;
       return;
     }
 
+    // ✅ Éxito: alerta aparece POR ENCIMA y, al cerrarse, se cierra la pestaña (o redirige)
     await Swal.fire({
       icon: 'success',
       title: '¡Contraseña actualizada!',
       text: 'Tu contraseña ha sido guardada correctamente.',
       timer: 1400,
-      showConfirmButton: false
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      heightAuto: false,
+      didOpen: () => {
+        // Asegurar stacking por si un CSS externo intenta sobreponer
+        const c = document.querySelector('.swal2-container');
+        if (c) c.style.zIndex = '100000';
+      },
+      willClose: () => {
+        smoothExit();
+      }
     });
-
-    smoothExit();
 
   } catch (err) {
     console.error(err);
-    await Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo conectar con el servidor.' });
+    await Swal.fire({ icon: 'error', title: 'Error de conexión', text: 'No se pudo conectar con el servidor.', heightAuto: false });
     btnGuardar.disabled = false;
   }
 }
 </script>
-
-<style>
-/* ===== Fondo institucional (igual al login) ===== */
-html, body, .page-bg { height: 100%; }
-body {
-  margin: 0;
-  font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: linear-gradient(135deg, #005796 0%, #7faed0 100%);
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-attachment: fixed;
-}
-.page-bg {
-  position: relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  overflow:hidden;
-  padding: 20px;
-}
-
-/* ===== Tarjeta ===== */
-.reset-card {
-  position: relative;
-  width: 100%;
-  max-width: 520px;
-  padding: 24px 22px 20px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow:
-    0 12px 24px rgba(2, 6, 23, .16),
-    0 4px 10px rgba(2, 6, 23, .08);
-  animation: cardEntrance .7s cubic-bezier(.2,.8,.2,1) both;
-  overflow: hidden;                 /* 👈 nada se sale del modal */
-  box-sizing: border-box;           /* 👈 mide con padding */
-}
-@keyframes cardEntrance {
-  from { transform: translateY(8px); opacity: 0; }
-  to   { transform: translateY(0);   opacity: 1; }
-}
-.reset-card.closing { animation: cardOut .42s cubic-bezier(.2,.8,.2,1) forwards; }
-@keyframes cardOut { to { transform: translateY(6px); opacity: 0; } }
-
-/* Marca de agua interna */
-.card-watermark{
-  position:absolute; inset:0; pointer-events:none;
-  background: url("{{ asset('imagen/LOGO_OFICIAL.png') }}") no-repeat center 26%;
-  background-size: 220px auto;
-  opacity:.05;
-}
-
-/* ===== Header ===== */
-.reset-header { position: relative; text-align:center; }
-.reset-logo { height: 58px; width:auto; margin-bottom: 10px; }
-.reset-header h1 { margin:0; font-size: 1.45rem; color:#0f172a; letter-spacing:.2px; }
-.subtitle { margin:6px 0 0; font-size:.95rem; color:#475569; }
-
-/* ===== Form ===== */
-.reset-form {
-  position: relative;
-  margin-top: 16px;
-  padding: 0 6px;                   /* 👈 acolcha para que nada roce el borde */
-  box-sizing: border-box;
-}
-.form-group { margin-top: 14px; }
-.password-wrapper { position: relative; }
-
-/* Inputs */
-.password-wrapper input{
-  width: 100%;
-  padding: 12px 44px 12px 14px;
-  font-size: 15px;
-  border: 1px solid #dbe3ee;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #0f172a;
-  transition: box-shadow .25s, border-color .25s, background .25s;
-  box-sizing: border-box;           /* 👈 evita desbordes */
-}
-.password-wrapper input::placeholder{ color:#9aa8bb; }
-.password-wrapper input:focus{
-  outline: none;
-  border-color: #0c66a1;
-  box-shadow: 0 0 0 4px rgba(12,102,161,.12);
-}
-
-/* Ojo */
-.toggle-password{
-  position:absolute; top:50%; right:12px; transform:translateY(-50%);
-  cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
-  background: transparent; border:0; padding:0;
-}
-
-/* Tooltip requisitos */
-.requisitos-tooltip{
-  position:absolute; top:-8px; left:0; transform:translateY(-100%);
-  width:100%;
-  background: #ffffff; color:#0f172a;
-  border:1px solid #e2e8f0; border-radius:12px;
-  box-shadow: 0 12px 24px rgba(2,6,23,.08);
-  padding:10px 14px; font-size:13px;
-  opacity:0; pointer-events:none; transition: opacity .25s, transform .25s;
-  box-sizing: border-box;
-}
-.requisitos-tooltip.visible{ opacity:1; transform:translateY(calc(-100% - 6px)); }
-.requisitos-tooltip li{ margin-bottom:4px; }
-
-/* Mensajes inline */
-.mensaje-inline{
-  position:absolute; right:12px; bottom:-18px;
-  font-size:12px; color: rgba(239,68,68,.95);
-  opacity:0; transition:opacity .2s; pointer-events:none;
-}
-
-/* ===== Barra de seguridad ===== */
-.barra-seguridad{
-  position: relative;
-  height: 8px;
-  background: #eaf0f7;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  overflow: hidden;
-  margin-top: 16px;
-  box-shadow: inset 0 0 4px rgba(2,6,23,.04);
-  width: 100%;
-  box-sizing: border-box;           /* 👈 se ajusta a padding del form */
-}
-.nivel-seguridad{
-  --bar: #ef4444;
-  height:100%;
-  width:0%;
-  border-radius:inherit;
-  background: linear-gradient(90deg, var(--bar), rgba(255,255,255,.25));
-  transition: width .45s ease, background .3s ease;
-}
-.texto-seguridad{
-  margin-top: 6px;
-  font-size:13px;
-  font-weight:600;
-  color:#334155;
-}
-
-/* Botón */
-.btn-primary{
-  width:100%;
-  padding:14px;
-  border:none;
-  border-radius:12px;
-  margin-top: 18px;
-  background: linear-gradient(135deg, #f4a300, #f1bb4f);
-  color:#fff; font-weight:600; letter-spacing:.2px; cursor:pointer;
-  transition: transform .15s ease, opacity .2s ease, box-shadow .2s ease;
-  box-shadow: 0 6px 18px rgba(244,163,0,.25);
-  box-sizing: border-box;
-}
-.btn-primary:hover{ transform: translateY(-1px); }
-.btn-primary:disabled{ opacity:.6; cursor:not-allowed; box-shadow:none; }
-
-/* Nota */
-.hint{ margin:10px 0 0; text-align:center; font-size:11px; color:#e6edf7; }
-
-/* Responsive */
-@media (max-width: 440px){
-  .reset-card{ padding:20px 16px 16px; border-radius:16px; }
-  .reset-form{ padding: 0 4px; }
-  .reset-logo{ height:52px; }
-  .card-watermark{ background-size: 170px auto; }
-}
-</style>
 
 </body>
 </html>

@@ -13,25 +13,27 @@
         pointer-events: none;
     }
     .btn-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
     }
     .btn-mode {
-        width: 100%;
         border: none;
-        padding: 12px 16px;
+        padding: 8px 12px;          /* 🔹 más pequeño */
         font-weight: 600;
-        border-radius: 8px;
+        border-radius: 6px;          /* 🔹 más pequeño */
         cursor: pointer;
-        transition: transform .05s ease;
+        transition: transform .05s ease, opacity .2s ease;
+        font-size: 0.9rem;           /* 🔹 más pequeño */
+        line-height: 1.1rem;
     }
     .btn-mode:active { transform: translateY(1px); }
     .btn-inst { background: #0ea5e9; color: #fff; }     /* azul */
     .btn-pers { background: #f59e0b; color: #fff; }     /* ámbar */
     .btn-submit { display:none; } /* ocultamos el submit clásico */
     .hint { font-size: .9rem; color:#555; margin-top:6px; }
+    .muted { color:#666; font-size:12px; }
 </style>
 
 <div class="register-user-container">
@@ -67,12 +69,12 @@
             <div class="hint">El enlace para definir contraseña se enviará a este correo personal.</div>
         </div>
 
-        {{-- Botones de modo --}}
+        {{-- Botones de modo (compactos) --}}
         <div class="btn-row">
-            <button type="button" class="btn-mode btn-inst" id="btnInst">
+            <button type="button" class="btn-mode btn-inst" id="btnInst" title="Genera un correo institucional único">
                 Crear con correo institucional
             </button>
-            <button type="button" class="btn-mode btn-pers" id="btnPers">
+            <button type="button" class="btn-mode btn-pers" id="btnPers" title="Usa el correo personal escrito">
                 Crear con correo personal
             </button>
         </div>
@@ -80,44 +82,47 @@
         {{-- Campo oculto para la bandera --}}
         <input type="hidden" id="usar_correo_institucional" value="true">
 
-        {{-- Botón submit tradicional (oculto) para compatibilidad si lo necesitases) --}}
+        {{-- Submit oculto (compatibilidad) --}}
         <button type="submit" class="btn-submit">REGISTRAR USUARIO</button>
     </form>
 </div>
 
 {{-- Script --}}
 <script>
+    const $select = document.getElementById('persona_select');
+    const $nombre = document.getElementById('nombre_completo');
+    const $correo = document.getElementById('correo_personal');
+    const $flag   = document.getElementById('usar_correo_institucional');
+    const $form   = document.getElementById('formRegistroUsuario');
+
     // Autocompletar nombre y correo al elegir persona
-    document.getElementById('persona_select').addEventListener('change', function () {
-        const selected = this.options[this.selectedIndex];
-        document.getElementById('nombre_completo').value = selected.getAttribute('data-nombre') || '';
-        document.getElementById('correo_personal').value = selected.getAttribute('data-correo') || '';
+    $select.addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        $nombre.value = opt.getAttribute('data-nombre') || '';
+        $correo.value = (opt.getAttribute('data-correo') || '').trim();
     });
 
-    // Handlers de los dos botones (institucional / personal)
     document.getElementById('btnInst').addEventListener('click', () => {
-        document.getElementById('usar_correo_institucional').value = 'true';
+        $flag.value = 'true';
         enviarRegistro();
     });
 
     document.getElementById('btnPers').addEventListener('click', () => {
-        document.getElementById('usar_correo_institucional').value = 'false';
+        $flag.value = 'false';
         enviarRegistro();
     });
 
-    // Si alguien usa Enter, evitamos submit vacío
-    document.getElementById('formRegistroUsuario').addEventListener('submit', function (e) {
-        e.preventDefault();
-    });
+    // Prevenir submit por Enter
+    $form.addEventListener('submit', (e) => e.preventDefault());
 
     function enviarRegistro() {
         const token = document.querySelector('input[name="_token"]').value;
-        const persona_id = document.getElementById('persona_select').value;
-        const nombre_completo = document.getElementById('nombre_completo').value;
-        const correo_personal = document.getElementById('correo_personal').value;
-        const usar_correo_institucional = document.getElementById('usar_correo_institucional').value === 'true';
+        const cod_persona = $select.value;                 // 🔹 enviamos cod_persona (no persona_id)
+        const nombre_completo = $nombre.value.trim();
+        const correo_personal = ($correo.value || '').trim();
+        const usar_correo_institucional = ($flag.value === 'true');
 
-        if (!persona_id || !nombre_completo || !correo_personal) {
+        if (!cod_persona || !nombre_completo) {
             Swal.fire({
                 icon: 'warning',
                 title: 'Faltan datos',
@@ -127,9 +132,19 @@
             return;
         }
 
-        // Confirmación rápida
+        if (!usar_correo_institucional && !correo_personal) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Correo personal requerido',
+                text: 'Para crear con correo personal, se necesita un correo válido.',
+                confirmButtonColor: '#f59e0b'
+            });
+            return;
+        }
+
+        // Confirmación
         const correoFinalPreview = usar_correo_institucional
-            ? '(institucional único será generado)'
+            ? '(se generará un institucional único)'
             : correo_personal;
 
         Swal.fire({
@@ -140,7 +155,7 @@
                   <p><b>Persona:</b> ${nombre_completo}</p>
                   <p><b>Modo:</b> ${usar_correo_institucional ? 'Correo institucional' : 'Correo personal'}</p>
                   <p><b>Correo final:</b> ${correoFinalPreview}</p>
-                  <p style="color:#666;font-size:12px">El enlace para definir contraseña expira en 24 horas.</p>
+                  <p class="muted">El enlace para definir contraseña expira en 24 horas.</p>
                 </div>
             `,
             showCancelButton: true,
@@ -150,6 +165,9 @@
         }).then(result => {
             if (!result.isConfirmed) return;
 
+            // Deshabilitar botones durante la petición
+            toggleButtons(true);
+
             fetch("{{ route('usuario.store') }}", {
                 method: 'POST',
                 headers: {
@@ -157,16 +175,15 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    persona_id,
+                    cod_persona,            // 🔹 nombre correcto para el backend Node
                     nombre_completo,
                     correo_personal,
                     usar_correo_institucional
                 })
             })
             .then(async res => {
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
 
-                // Éxito (soporta respuestas tipo {success:true} o {mensaje: '...'})
                 if (res.ok && (data.success === true || data.mensaje)) {
                     Swal.fire({
                         icon: 'success',
@@ -176,15 +193,14 @@
                             : 'Usuario registrado correctamente. Revisa el correo personal.',
                         confirmButtonColor: '#16a34a'
                     });
-
-                    // Limpiar campos
-                    document.getElementById('formRegistroUsuario').reset();
-                    document.getElementById('nombre_completo').value = '';
-                    document.getElementById('correo_personal').value = '';
+                    // Limpiar
+                    $form.reset();
+                    $nombre.value = '';
+                    $correo.value = '';
                     return;
                 }
 
-                // Errores conocidos desde backend
+                // Errores del backend (mostrar texto exacto si llega)
                 const msg = data?.error || 'Ocurrió un error al registrar.';
                 Swal.fire({
                     icon: 'error',
@@ -200,8 +216,16 @@
                     text: 'No se pudo registrar el usuario. Intenta más tarde.',
                     confirmButtonColor: '#ef4444'
                 });
-            });
+            })
+            .finally(() => toggleButtons(false));
         });
+    }
+
+    function toggleButtons(disabled) {
+        document.getElementById('btnInst').disabled = disabled;
+        document.getElementById('btnPers').disabled = disabled;
+        document.getElementById('btnInst').style.opacity = disabled ? .7 : 1;
+        document.getElementById('btnPers').style.opacity = disabled ? .7 : 1;
     }
 </script>
 @endsection

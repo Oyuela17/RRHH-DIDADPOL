@@ -368,3 +368,38 @@ input::placeholder { color: #aaa; }
   from { transform: scale(0.8); opacity: 0; }
   to   { transform: scale(1);   opacity: 1; }
 }
+
+/* 🔵 Fondo uniforme institucional (sin divisiones ni líneas) */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(135deg, #005796 0%, #7faed0 100%) !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+  overflow: hidden;
+}
+
+/* 🧱 Quita cualquier fondo o sombra adicional que cause la franja */
+.login-wrapper,
+.card-login,
+.login-wrapper::before,
+.login-wrapper::after,
+.card-login::before,
+.card-login::after {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* 🧩 Asegura que el contenedor central flote limpio sobre el fondo */
+.card-login {
+  position: relative;
+  z-index: 5;
+}
+
+/* Opcional: añade una sutil sombra al card para darle profundidad */
+.card-login {
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25) !important;
+}

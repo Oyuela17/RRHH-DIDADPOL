@@ -5,17 +5,20 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;                 // 👈 usamos la API
-use Illuminate\Pagination\LengthAwarePaginator;     // 👈 paginación manual
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class UserRoleController extends Controller
 {
     /**
-     * Mostrar vista con usuarios y roles (lista desde la API)
+     * Mostrar vista con usuarios y roles
+     * Plan A: API /api/usuarios
+     * Plan B: BD (fallback)
      */
     public function index(Request $request)
     {
-        // Rol del usuario autenticado (insignia del header)
+        // Rol del usuario autenticado (insignia)
         if (Auth::check()) {
             $rol = DB::table('roles')
                 ->join('role_user', 'roles.id', '=', 'role_user.role_id')
@@ -28,45 +31,94 @@ class UserRoleController extends Controller
         $busqueda = strtoupper((string) $request->input('buscar', ''));
         $orden    = $request->input('ordenar', 'nombre'); // nombre|fecha
         if (!in_array($orden, ['nombre', 'fecha'], true)) $orden = 'nombre';
-
         $perPage  = max((int) $request->input('registros', 10), 5);
         $page     = max((int) $request->input('page', 1), 1);
 
-        // 🔗 URL directa a tu API
-        $url = 'https://rrhh-didadpol-1.onrender.com/api/usuarios';
+        // ---- PLAN A: API ----
+        try {
+            $url  = 'https://rrhh-didadpol-1.onrender.com/api/usuarios';
 
-        // Llamar API
-        $resp = Http::timeout(10)->get($url);
-        if ($resp->failed()) {
-            return back()->with('error', 'No se pudo obtener la lista desde la API.');
+            // Si hay problemas de SSL en el host, descomenta ->withoutVerifying()
+            $resp = Http::timeout(10)
+                //->withoutVerifying()
+                ->acceptJson()
+                ->get($url)
+                ->throw(); // lanza excepción si HTTP != 2xx
+
+            $all = collect($resp->json()); // id, name, email, estado, nombre_rol, role_id
+
+            // Filtro por nombre
+            if ($busqueda !== '') {
+                $all = $all->filter(fn ($u) =>
+                    str_contains(strtoupper($u['name'] ?? ''), $busqueda)
+                )->values();
+            }
+
+            // Orden (no viene created_at; usamos id como proxy de “fecha”)
+            if ($orden === 'fecha') {
+                $all = $all->sortByDesc('id')->values();
+            } else {
+                $all = $all->sortBy(fn ($u) => strtoupper($u['name'] ?? ''))->values();
+            }
+
+            // Paginación manual
+            $total = $all->count();
+            $items = $all->forPage($page, $perPage)->values();
+
+            $usuarios_roles = new LengthAwarePaginator(
+                $items, $total, $perPage, $page,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+
+            // Roles activos para el modal (desde BD)
+            $roles = DB::table('roles')->where('estado', 'ACTIVO')->get();
+
+            return view('usuarios_roles.index', [
+                'usuarios_roles' => $usuarios_roles,
+                'roles'          => $roles,
+                'busqueda'       => $busqueda,
+                'cantidad'       => $perPage,
+                'orden'          => $orden,
+            ]);
+
+        } catch (\Throwable $e) {
+            // Logueamos por qué falló el Plan A y caemos al Plan B
+            Log::error('Fallo API /api/usuarios: '.$e->getMessage());
         }
 
-        // Colección completa tal cual devuelve la API
-        // Campos esperados: id, name, email, estado, nombre_rol, role_id
-        $all = collect($resp->json());
+        // ---- PLAN B (FALLBACK): BD con subconsultas, sin JOIN que esconda usuarios) ----
+        $base = DB::table('users as u')
+            ->select([
+                'u.id',
+                'u.name',
+                'u.email',
+                'u.estado',
+                'u.created_at',
+                DB::raw("(SELECT ru.role_id FROM role_user ru WHERE ru.user_id = u.id LIMIT 1) as role_id"),
+                DB::raw("(SELECT r.nombre 
+                          FROM role_user ru 
+                          JOIN roles r ON r.id = ru.role_id 
+                          WHERE ru.user_id = u.id LIMIT 1) as nombre_rol"),
+            ]);
 
-        // Filtro por nombre
         if ($busqueda !== '') {
-            $all = $all->filter(fn ($u) => str_contains(strtoupper($u['name'] ?? ''), $busqueda))->values();
+            $base->whereRaw("UPPER(u.name) LIKE ?", ["%{$busqueda}%"]);
         }
 
-        // Orden (la API no trae created_at; usamos id como proxy de “fecha”)
         if ($orden === 'fecha') {
-            $all = $all->sortByDesc('id')->values();
+            $base->orderBy('u.created_at', 'desc');
         } else {
-            $all = $all->sortBy(fn ($u) => strtoupper($u['name'] ?? ''))->values();
+            $base->orderBy('u.name', 'asc');
         }
 
-        // Paginación manual sobre la colección
-        $total = $all->count();
-        $items = $all->forPage($page, $perPage)->values();
+        $total = (clone $base)->count(); // cuenta sobre users
+        $items = $base->forPage($page, $perPage)->get();
 
         $usuarios_roles = new LengthAwarePaginator(
             $items, $total, $perPage, $page,
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        // Roles activos para el modal (desde BD; si quieres, luego los pasamos a la API)
         $roles = DB::table('roles')->where('estado', 'ACTIVO')->get();
 
         return view('usuarios_roles.index', [
@@ -79,7 +131,7 @@ class UserRoleController extends Controller
     }
 
     /**
-     * Asignar o actualizar rol y estado del usuario (contra BD por ahora)
+     * Asignar o actualizar rol y estado del usuario (contra BD)
      */
     public function asignar(Request $request, $id)
     {
@@ -94,7 +146,7 @@ class UserRoleController extends Controller
             $existe = DB::table('role_user')->where('user_id', $id)->exists();
 
             if ($existe) {
-                // ⚠️ Sin updated_at para evitar error si no existe esa columna
+                // role_user puede no tener updated_at → no lo toques
                 DB::table('role_user')
                     ->where('user_id', $id)
                     ->update([
@@ -111,7 +163,6 @@ class UserRoleController extends Controller
             DB::table('users')->where('id', $id)->update([
                 'estado'     => strtoupper($request->estado),
                 'updated_at' => now(),
-                // si tienes trigger que resetea intentos_fallidos al activar, puedes omitirlo
             ]);
 
             DB::commit();
@@ -128,7 +179,7 @@ class UserRoleController extends Controller
     }
 
     /**
-     * Eliminar un usuario (y su relación de rol) — contra BD
+     * Eliminar un usuario (y su relación de rol)
      */
     public function eliminar($id)
     {

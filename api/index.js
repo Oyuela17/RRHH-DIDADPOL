@@ -488,8 +488,6 @@ const quitarAcentos = (texto) => {
 // REGISTRAR USUARIO (personal o institucional)
 // ==========================
 
-const WEB_BASE_URL = process.env.WEB_BASE_URL || 'https://rrhh-didadpol-main-khmtlb.laravel.cloud';
-
 // Normalizar correo
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase();

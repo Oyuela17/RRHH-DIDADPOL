@@ -115,9 +115,7 @@
     </table>
 
     <!-- Paginación -->
-    <div class="paginacion-wrapper" id="paginacionWrapper">
-      {{ $usuarios_roles->appends(request()->except('page'))->links('pagination::bootstrap-4') }}
-    </div>
+  
   </div>
 </div>
 

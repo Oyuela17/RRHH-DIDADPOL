@@ -54,13 +54,9 @@ class UserRoleController extends Controller
             }, function ($query) {
                 return $query->orderBy('u.name', 'asc');
             })
-            ->paginate($cantidad)
-            ->appends([
-                'buscar'   => $request->input('buscar', ''),
-                'registros'=> $cantidad,
-                'ordenar'  => $orden,
-            ]);
+            ->get();
 
+          
         // Solo roles activos para asignar
         $roles = DB::table('roles')->where('estado', 'ACTIVO')->get();
 

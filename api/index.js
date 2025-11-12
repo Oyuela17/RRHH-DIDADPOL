@@ -667,6 +667,43 @@ app.post('/api/registrar-usuario', async (req, res) => {
   }
 });
 
+// ==========================
+// FUNCIÓN: Enviar correo con Brevo (HTTP API)
+// ==========================
+const axios = require('axios');
+
+async function enviarCorreoBrevo(to, subject, html) {
+  try {
+    const payload = {
+      sender: { 
+        name: process.env.MAIL_FROM_NAME || 'DIDADPOL',
+        email: process.env.MAIL_FROM_ADDRESS || 'no-reply@didadpol.gob.hn'
+      },
+      to: (Array.isArray(to) ? to : [to]).map(email => ({ email })),
+      subject,
+      htmlContent: html,
+    };
+
+    const res = await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      payload,
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('📨 Correo enviado via Brevo:', to);
+    return { ok: true, messageId: res.data?.messageId || 'ok' };
+
+  } catch (err) {
+    console.error('[Brevo API Error]', err.response?.data || err.message);
+    return { ok: false, error: err.response?.data || err.message };
+  }
+}
+
 
 // ==========================
 // DEFINIR CONTRASEÑA

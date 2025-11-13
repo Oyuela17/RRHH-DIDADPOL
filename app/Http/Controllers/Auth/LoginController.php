@@ -44,57 +44,24 @@ class LoginController extends Controller
 
         // Buscar usuario
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
-
-        // 1) Usuario NO existe
         if (!$user) {
             $this->registrarIntentoEnBD($email, false, $ip, $ua, 'USUARIO_NO_EXISTE');
-
-            // Bitácora de sesión (sin user_id, pero con correo, IP y navegador)
-            $this->registrarBitacoraSesion(
-                null,
-                $email,
-                'FALLO_LOGIN',
-                'Intento de inicio de sesión con usuario no existente.',
-                $ip,
-                $ua
-            );
-
             return back()->withInput()->with('error', 'Correo o contraseña incorrectos.');
         }
 
-        // 2) Usuario INACTIVO
+        // Estado
         if (strcasecmp($user->estado, 'INACTIVO') === 0) {
             $this->registrarIntentoEnBD($email, false, $ip, $ua, 'USUARIO_INACTIVO');
-
-            $this->registrarBitacoraSesion(
-                $user->id,
-                $user->name,
-                'INTENTO_LOGIN_INACTIVO',
-                'Intento de inicio de sesión con cuenta inactiva.',
-                $ip,
-                $ua
-            );
-
             return back()->withInput()->with('error', 'Tu cuenta está inactiva. Contacta al administrador.');
         }
 
-        // 3) Contraseña incorrecta
+        // Contraseña
         if (!Hash::check($password, $user->password)) {
             $res      = $this->registrarIntentoEnBD($email, false, $ip, $ua, 'PASSWORD_INCORRECTO');
             $status   = $res['status'] ?? null;
             $intentos = $res['intentos'] ?? null;
 
             if ($status === 'blocked') {
-                // Usuario bloqueado por el SP
-                $this->registrarBitacoraSesion(
-                    $user->id,
-                    $user->name,
-                    'BLOQUEO',
-                    'Usuario bloqueado por intentos fallidos de inicio de sesión.',
-                    $ip,
-                    $ua
-                );
-
                 return back()->withInput()->with('error', 'Usuario bloqueado por intentos fallidos. Contacta al administrador.');
             }
 
@@ -102,22 +69,10 @@ class LoginController extends Controller
             if (is_numeric($intentos)) {
                 $msg = "Contraseña incorrecta. Intento {$intentos} de 3.";
             }
-
-            $this->registrarBitacoraSesion(
-                $user->id,
-                $user->name,
-                'FALLO_LOGIN',
-                is_numeric($intentos)
-                    ? "Contraseña incorrecta. Intento {$intentos} de 3."
-                    : 'Contraseña incorrecta.',
-                $ip,
-                $ua
-            );
-
             return back()->withInput()->with('error', $msg);
         }
 
-        // 4) Rol
+        // Rol
         $rol = DB::table('roles')
             ->join('role_user', 'roles.id', '=', 'role_user.role_id')
             ->where('role_user.user_id', $user->id)
@@ -125,49 +80,19 @@ class LoginController extends Controller
             ->first();
 
         if (!$rol) {
-            $this->registrarBitacoraSesion(
-                $user->id,
-                $user->name,
-                'ACCESO_DENEGADO',
-                'Intento de acceso sin rol asignado.',
-                $ip,
-                $ua
-            );
-
             return back()->withInput()->with('error', 'Acceso denegado. No tienes un rol asignado.');
         }
-
         if (strcasecmp($rol->estado, 'ACTIVO') !== 0) {
-            $this->registrarBitacoraSesion(
-                $user->id,
-                $user->name,
-                'ACCESO_DENEGADO',
-                'Intento de acceso con rol inactivo.',
-                $ip,
-                $ua
-            );
-
             return back()->withInput()->with('error', 'Acceso denegado. Tu rol está inactivo.');
         }
 
         /** ===== Switch 2FA ===== */
         if (self::TWO_FA_MODE === 'off') {
-            // Login directo sin 2FA
+            // Login directo
             $this->registrarIntentoEnBD($email, true, $ip, $ua, null);
-
-            $this->registrarBitacoraSesion(
-                $user->id,
-                $user->name,
-                'LOGIN',
-                'Inicio de sesión exitoso (sin 2FA).',
-                $ip,
-                $ua
-            );
-
             Auth::login($user, $request->filled('remember'));
             $request->session()->regenerate();
             session(['nombre_rol' => $rol->nombre]);
-
             return redirect()->intended('/home');
         }
 
@@ -194,7 +119,7 @@ class LoginController extends Controller
         try {
             $http = Http::timeout(self::NODE_API_TIMEOUT);
             if (!empty(env('ADMIN_TOKEN'))) {
-                $http = $http->withHeaders(['Authorization' => 'Bearer ' . env('ADMIN_TOKEN')]);
+                $http = $http->withHeaders(['Authorization' => 'Bearer '.env('ADMIN_TOKEN')]);
             }
 
             $resp = $http->post(self::NODE_API_BASE . '/api/2fa/start', ['email' => $email]);
@@ -245,32 +170,15 @@ class LoginController extends Controller
                 return response()->json(['error' => 'Código inválido.'], 422);
             }
 
-            $ip = $request->ip();
-            $ua = $request->userAgent();
-
             // ===== Mock: acepta 123456 sin API =====
             if (self::TWO_FA_MODE === 'mock') {
                 if ($code !== self::TWO_FA_TEST_CODE) {
-                    // Podrías registrar en bitácora fallo de 2FA si quieres
                     return response()->json(['error' => 'Código inválido (modo prueba).'], 422);
                 }
                 $user = User::find($userId);
-                if (!$user) {
-                    return response()->json(['error' => 'Usuario no encontrado.'], 404);
-                }
+                if (!$user) return response()->json(['error' => 'Usuario no encontrado.'], 404);
 
-                // Éxito total de login (credenciales + 2FA)
-                $this->registrarIntentoEnBD($email, true, $ip, $ua, null);
-
-                $this->registrarBitacoraSesion(
-                    $user->id,
-                    $user->name,
-                    'LOGIN',
-                    'Inicio de sesión exitoso (2FA mock).',
-                    $ip,
-                    $ua
-                );
-
+                $this->registrarIntentoEnBD($email, true, $request->ip(), $request->userAgent(), null);
                 Auth::login($user, $remember);
                 $request->session()->regenerate();
                 session(['nombre_rol' => $rolNombre]);
@@ -286,7 +194,7 @@ class LoginController extends Controller
             // ===== Modo 'email': verificar con API Node =====
             $http = Http::timeout(self::NODE_API_TIMEOUT);
             if (!empty(env('ADMIN_TOKEN'))) {
-                $http = $http->withHeaders(['Authorization' => 'Bearer ' . env('ADMIN_TOKEN')]);
+                $http = $http->withHeaders(['Authorization' => 'Bearer '.env('ADMIN_TOKEN')]);
             }
 
             $resp = $http->post(self::NODE_API_BASE . '/api/2fa/verify', [
@@ -297,27 +205,13 @@ class LoginController extends Controller
 
             if (!$resp->successful() || empty($data['ok'])) {
                 $msg = $data['error'] ?? 'Código inválido o expirado.';
-                // Podrías registrar evento de FALLO_2FA aquí si quieres
                 return response()->json(['error' => $msg], $resp->status() ?: 400);
             }
 
             $user = User::find($userId);
-            if (!$user) {
-                return response()->json(['error' => 'Usuario no encontrado.'], 404);
-            }
+            if (!$user) return response()->json(['error' => 'Usuario no encontrado.'], 404);
 
-            // Éxito total de login (credenciales + 2FA por correo)
-            $this->registrarIntentoEnBD($email, true, $ip, $ua, null);
-
-            $this->registrarBitacoraSesion(
-                $user->id,
-                $user->name,
-                'LOGIN',
-                'Inicio de sesión exitoso (2FA email).',
-                $ip,
-                $ua
-            );
-
+            $this->registrarIntentoEnBD($email, true, $request->ip(), $request->userAgent(), null);
             Auth::login($user, $remember);
             $request->session()->regenerate();
             session(['nombre_rol' => $rolNombre]);
@@ -353,7 +247,7 @@ class LoginController extends Controller
             // Modo 'email': API Node
             $http = Http::timeout(self::NODE_API_TIMEOUT);
             if (!empty(env('ADMIN_TOKEN'))) {
-                $http = $http->withHeaders(['Authorization' => 'Bearer ' . env('ADMIN_TOKEN')]);
+                $http = $http->withHeaders(['Authorization' => 'Bearer '.env('ADMIN_TOKEN')]);
             }
 
             $resp = $http->post(self::NODE_API_BASE . '/api/2fa/resend', [
@@ -380,38 +274,14 @@ class LoginController extends Controller
         }
     }
 
-    /**
-     * Cerrar sesión
-     */
     public function logout(Request $request)
     {
-        $ip = $request->ip();
-        $ua = $request->userAgent();
-
-        if (Auth::check()) {
-            $user = Auth::user();
-
-            // Registrar cierre de sesión en bitácora
-            $this->registrarBitacoraSesion(
-                $user->id,
-                $user->name,
-                'LOGOUT',
-                'Cierre de sesión.',
-                $ip,
-                $ua
-            );
-        }
-
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('login');
     }
 
-    /**
-     * Invoca la función SQL public.login_registrar_intento(...)
-     * Devuelve el JSON decodificado o [] si algo falla.
-     */
     private function registrarIntentoEnBD(string $email, bool $exito, string $ip, string $ua, ?string $motivo): array
     {
         try {
@@ -430,39 +300,10 @@ class LoginController extends Controller
         return [];
     }
 
-    /**
-     * Registrar en tabla bitacora un evento de SESIÓN (login/logout/fallo/bloqueo)
-     */
-    private function registrarBitacoraSesion(
-        ?int $usuarioId,
-        string $usuarioNombre,
-        string $accion,
-        string $descripcion,
-        string $ip,
-        string $navegador
-    ): void {
-        try {
-            DB::table('bitacora')->insert([
-                'fecha'          => now(),
-                'usuario_id'     => $usuarioId,
-                'usuario_nombre' => $usuarioNombre,
-                'tipo_evento'    => 'SESION',   // para que modo "sesiones" lo detecte
-                'tabla'          => 'sessions',
-                'accion'         => $accion,    // LOGIN | LOGOUT | FALLO_LOGIN | BLOQUEO | ...
-                'id_registro'    => $usuarioId,
-                'descripcion'    => $descripcion,
-                'ip_origen'      => $ip,
-                'navegador'      => $navegador,
-            ]);
-        } catch (\Throwable $e) {
-            \Log::warning('Error registrando bitácora de sesión: ' . $e->getMessage());
-        }
-    }
-
     /** Enmascara correo para el modal */
     private function maskEmail(string $email): string
     {
         [$u, $d] = explode('@', $email);
-        return substr($u, 0, 2) . str_repeat('*', max(strlen($u) - 2, 0)) . '@' . $d;
+        return substr($u, 0, 2) . str_repeat('*', max(strlen($u)-2, 0)) . '@' . $d;
     }
 }

@@ -24,6 +24,7 @@
     'resources/css/permisos.css',
     'resources/css/tipos_empleados.css',
     'resources/css/puestos.css',
+    'resources/css/bitacora.css',
     'resources/css/personas.css',
     'resources/css/reportes.css',
     'resources/css/asistencia.css',

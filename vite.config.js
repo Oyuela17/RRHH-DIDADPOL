@@ -16,6 +16,7 @@ export default defineConfig({
                 'resources/css/calendario.css',
                 'resources/css/tipos_empleados.css',
                 'resources/css/personas.css',
+                'resources/css/bitacora.css',
                 'resources/css/reportes.css',
                 'resources/css/asistencia.css',
                 'resources/css/asistencia_admin.css',

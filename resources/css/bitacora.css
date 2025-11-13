@@ -1,0 +1,330 @@
+/* =========================
+   Bitácora - Layout general
+   ========================= */
+.bitacora-wrapper {
+  background: #f9fafc;
+  padding: 1.5rem;
+  border-radius: 10px;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* Tabs */
+.bitacora-wrapper .tabs-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0;
+}
+
+.bitacora-wrapper .tab-btn {
+  background: #1b4f72;
+  color: #fff;
+  border: none;
+  border-radius: 6px 6px 0 0;
+  padding: 0.6rem 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bitacora-wrapper .tab-btn.active {
+  background: #21618c;
+  font-weight: 600;
+}
+
+.bitacora-wrapper .tab-btn:hover {
+  background: #2471a3;
+}
+
+/* Contenedor bajo tabs */
+.bitacora-wrapper .tab-content {
+  background: #fff;
+  border-radius: 0 10px 10px 10px;
+  padding: 1.2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  margin-top: -1px;
+}
+
+/* Título sección */
+.bitacora-wrapper .bitacora-titulo-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: .75rem;
+}
+
+.bitacora-wrapper .bitacora-titulo {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1b2631;
+}
+
+/* =========================
+   Filtros
+   ========================= */
+.bitacora-wrapper .bitacora-filtros-row {
+  margin-bottom: .75rem;
+}
+
+.bitacora-wrapper .filtros-linea {
+  display: flex;
+  align-items: center;      /* todos a la misma altura */
+  gap: .5rem;
+  flex-wrap: wrap;
+  background: #f2f6fb;
+  border: 1px solid #e4eef8;
+  padding: .75rem;
+  border-radius: 10px;
+}
+
+/* Fila principal de filtros */
+.bitacora-wrapper .fila-filtros {
+  justify-content: flex-start;
+}
+
+/* Bloque izquierdo: buscador + botones en una sola fila */
+.bitacora-wrapper .bloque-izquierdo {
+  display: flex;
+  align-items: center;      /* botones y input alineados verticalmente */
+  gap: .6rem;
+  flex: 0 0 auto;
+}
+
+/* Buscador grande a la izquierda */
+.bitacora-wrapper .filtro-buscador {
+  flex: 0 0 auto;
+}
+
+/* 👇 ancho del buscador */
+.bitacora-wrapper .buscador-grande {
+  width: 600px;             /* puedes subir o bajar este valor */
+  max-width: 100%;
+}
+
+/* Labels */
+.bitacora-wrapper .filtro-label {
+  display: block;
+  font-size: .8rem;
+  color: #5d6d7e;
+  margin-bottom: .25rem;
+}
+
+.bitacora-wrapper .inp {
+  height: 38px;
+  border: 1px solid #cfe0f3;
+  border-radius: 10px;
+  padding: 0 .75rem;
+  background: #fff;
+  color: #2c3e50;
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+
+.bitacora-wrapper .inp:focus {
+  border-color: #6aa3de;
+  box-shadow: 0 0 0 4px rgba(52,152,219,.15);
+}
+
+/* Botones justo al lado del buscador */
+.bitacora-wrapper .filtros-botones {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex-wrap: nowrap;
+}
+
+/* Bloque de filtros secundarios a la derecha, juntos */
+.bitacora-wrapper .filtros-secundarios-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-left: auto;        /* se pegan hacia la derecha */
+}
+
+.bitacora-wrapper .filtro-item {
+  min-width: 140px;
+}
+
+.bitacora-wrapper .mostrar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+}
+
+.bitacora-wrapper .texto-registros {
+  font-size: .8rem;
+  color: #5d6d7e;
+}
+
+/* Botón aplicar (azul) */
+.bitacora-wrapper .btn-primario {
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(180deg,#0ea5e9,#0284c7);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .06s ease, filter .15s ease, box-shadow .15s ease;
+  box-shadow: 0 6px 14px rgba(2,132,199,.25);
+  line-height: 1;
+}
+
+.bitacora-wrapper .btn-primario:hover {
+  filter: brightness(1.06);
+}
+
+.bitacora-wrapper .btn-primario:active {
+  transform: translateY(1px);
+}
+
+/* Botón limpiar (rojo tipo peligro) */
+.bitacora-wrapper .btn-peligro {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 0;
+  background: linear-gradient(180deg,#ef4444,#b91c1c);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .06s ease, filter .15s ease, box-shadow .15s ease;
+  box-shadow: 0 6px 14px rgba(185,28,28,.25);
+  line-height: 1;
+}
+
+.bitacora-wrapper .btn-peligro:hover {
+  filter: brightness(1.06);
+}
+
+.bitacora-wrapper .btn-peligro:active {
+  transform: translateY(1px);
+}
+
+/* =========================
+   Tabla
+   ========================= */
+.bitacora-wrapper .bitacora-container {
+  margin-top: .75rem;
+}
+
+.bitacora-wrapper .bitacora-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+}
+
+.bitacora-wrapper .bitacora-table th {
+  background: #21618c;
+  color: #fff;
+  padding: .55rem .6rem;
+  text-align: left;
+}
+
+.bitacora-wrapper .bitacora-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: .55rem .6rem;
+}
+
+.bitacora-wrapper .bitacora-table tr:hover {
+  background: #ebf5fb;
+}
+
+.bitacora-wrapper .bitacora-table .texto-corto {
+  max-width: 360px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.bitacora-wrapper .bitacora-table .sin-registros {
+  padding: 1rem;
+  color: #5d6d7e;
+}
+
+/* =========================
+   Paginación
+   ========================= */
+.bitacora-wrapper .paginacion-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: .3rem;
+  margin-top: .8rem;
+}
+
+.bitacora-wrapper .page-btn {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #cfd8e3;
+  background: #fff;
+  color: #1f2933;
+  font-size: .86rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.bitacora-wrapper .page-btn:hover {
+  background: #e5f3ff;
+  border-color: #85b7ff;
+}
+
+.bitacora-wrapper .page-btn.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+  font-weight: 600;
+  cursor: default;
+}
+
+.bitacora-wrapper .page-btn.disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  cursor: default;
+}
+
+/* =========================
+   Loader
+   ========================= */
+.bitacora-wrapper #bitacoraResultados.loading {
+  opacity: .5;
+  pointer-events: none;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .bitacora-wrapper .filtros-linea {
+    align-items: flex-start;
+  }
+  .bitacora-wrapper .filtros-secundarios-inner {
+    margin-left: 0;
+  }
+  .bitacora-wrapper .bloque-izquierdo {
+    width: 100%;
+    margin-bottom: .5rem;
+  }
+  .bitacora-wrapper .buscador-grande {
+    width: 100%;
+  }
+}
+
+.bloque-izquierdo {
+  display: flex;
+  align-items: flex-end; /* ALINEA TODO ABAJO */
+  gap: .8rem;
+}
+
+.buscador-grande {
+  width: 300px !important; /* 👈 MÁS ANCHO */
+  max-width: 100%;
+}
+
+.filtro-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+}

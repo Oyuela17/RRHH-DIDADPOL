@@ -17,6 +17,7 @@
     'resources/css/roles.css',
     'resources/css/home.css',
     'resources/css/planilla.css',
+    'resources/css/bitacora.css',
     'resources/css/calendario.css',
     'resources/css/backups.css',
     'resources/css/oficinas.css',

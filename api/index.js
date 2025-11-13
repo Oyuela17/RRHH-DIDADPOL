@@ -42,13 +42,13 @@ app.use(['/api/2fa/start','/api/2fa/verify','/api/2fa/resend','/api/recuperar-co
 // =========================
 
 const pool = new Pool({
-  host: process.env.DB_HOST,           // tomado del entorno Render
-  port: process.env.DB_PORT,           // 5432
-  user: process.env.DB_USER,           // rrhh_didadpol_db_user
-  password: process.env.DB_PASSWORD,   // tu password Render
-  database: process.env.DB_NAME,       // rrhh_didadpol_db
+  host: process.env.DB_HOST,           
+  port: process.env.DB_PORT,          
+  user: process.env.DB_USER,           
+  password: process.env.DB_PASSWORD,   
+  database: process.env.DB_NAME,       
   ssl: {
-    rejectUnauthorized: false,         // obligatorio en Render
+    rejectUnauthorized: false,         
   },
 });
 
@@ -59,24 +59,159 @@ pool.connect()
 
 
 // =========================
-// GET: Mostrar registros de bitácora (versión minimalista)
+// GET: Bitácora (General / Sesiones) con filtros, orden y paginación
+// Tabla: id, fecha, usuario_id, usuario_nombre, tipo_evento,
+//        tabla, accion, id_registro, descripcion, ip_origen, navegador
 // =========================
 app.get('/api/bitacora', async (req, res) => {
   try {
-    const query = `
-      SELECT 
-        fecha, 
-        usuario_nombre, 
-        accion, 
-        tabla, 
-        descripcion, 
-        ip_origen
+    const {
+      modo = 'general',          // 'general' | 'sesiones'
+      usuario,
+      usuario_id,
+      tipo_evento,
+      accion,
+      tabla,
+      ip,
+      q,
+      desde,
+      hasta,
+      incluir_sesiones,          // (opcional) ya no es tan necesario, pero lo dejamos
+      page = '1',
+      limit = '20',
+      sort = 'fecha',
+      dir = 'desc'
+    } = req.query;
+
+    const pageNum  = Math.max(parseInt(page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+    const offset   = (pageNum - 1) * limitNum;
+
+    const SORT_MAP = {
+      fecha:   'fecha',
+      usuario: 'usuario_nombre',
+      accion:  'accion',
+      tabla:   'tabla',
+      tipo:    'tipo_evento',
+    };
+    const sortCol = SORT_MAP[sort] || 'fecha';
+    const sortDir = (String(dir).toLowerCase() === 'asc') ? 'ASC' : 'DESC';
+
+    const where = [];
+    const params = [];
+
+    const modoLower = String(modo).toLowerCase();
+
+    // ------------- MODO GENERAL / SESIONES -------------
+    // Sesiones = lo que venga de tabla 'sessions' o tipo_evento = 'SESION'
+    // General  = todo lo demás
+    if (modoLower === 'sesiones') {
+      where.push(`(tabla = 'sessions' OR tipo_evento = 'SESION')`);
+    } else {
+      const incluir = String(incluir_sesiones).toLowerCase() === 'true';
+      if (!incluir) {
+        where.push(`NOT (tabla = 'sessions' OR tipo_evento = 'SESION')`);
+      }
+    }
+
+    // ------------- FILTROS EXTRA -------------
+    if (usuario_id) {
+      params.push(parseInt(usuario_id, 10));
+      where.push(`usuario_id = $${params.length}`);
+    }
+
+    if (usuario && usuario.trim()) {
+      params.push(`%${usuario.trim()}%`);
+      where.push(`usuario_nombre ILIKE $${params.length}`);
+    }
+
+    if (tipo_evento && tipo_evento.trim()) {
+      params.push(tipo_evento.trim().toUpperCase());
+      where.push(`tipo_evento = $${params.length}`);
+    }
+
+    if (accion && accion.trim()) {
+      params.push(accion.trim().toUpperCase());
+      where.push(`accion = $${params.length}`);
+    }
+
+    if (tabla && tabla.trim()) {
+      params.push(tabla.trim());
+      where.push(`tabla = $${params.length}`);
+    }
+
+    if (ip && ip.trim()) {
+      params.push(ip.trim());
+      where.push(`ip_origen = $${params.length}`);
+    }
+
+    if (q && q.trim()) {
+      params.push(`%${q.trim()}%`);
+      where.push(`(
+        descripcion ILIKE $${params.length}
+        OR tabla ILIKE $${params.length}
+        OR usuario_nombre ILIKE $${params.length}
+      )`);
+    }
+
+    if (desde) {
+      params.push(`${desde} 00:00:00`);
+      where.push(`fecha >= $${params.length}`);
+    }
+
+    if (hasta) {
+      params.push(`${hasta} 23:59:59`);
+      where.push(`fecha <= $${params.length}`);
+    }
+
+    const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    // ------------- CONSULTA DE DATOS -------------
+    const dataSQL = `
+      SELECT
+        id,
+        fecha,
+        usuario_id,
+        usuario_nombre,
+        tipo_evento,
+        tabla,
+        accion,
+        id_registro,
+        descripcion,
+        ip_origen,
+        navegador
       FROM public.bitacora
-      ORDER BY fecha DESC;
+      ${whereSQL}
+      ORDER BY ${sortCol} ${sortDir}
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2};
     `;
 
-    const { rows } = await pool.query(query);
-    res.json(rows);
+    const countSQL = `
+      SELECT COUNT(*)::int AS total
+      FROM public.bitacora
+      ${whereSQL};
+    `;
+
+    const dataParams = params.concat([limitNum, offset]);
+    const [dataRes, countRes] = await Promise.all([
+      pool.query(dataSQL, dataParams),
+      pool.query(countSQL, params),
+    ]);
+
+    const total = countRes.rows[0]?.total ?? 0;
+
+    res.json({
+      data: dataRes.rows,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        last_page: Math.max(Math.ceil(total / limitNum), 1),
+        sort: sortCol,
+        dir: sortDir.toLowerCase(),
+        modo: modoLower,
+      },
+    });
   } catch (error) {
     console.error('Error al obtener la bitácora:', error);
     res.status(500).json({ error: 'Error al obtener los registros de la bitácora' });

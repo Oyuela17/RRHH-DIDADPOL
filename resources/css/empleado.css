@@ -331,14 +331,7 @@ td {
   gap: 10px;
 }
 
-.foto-perfil-cuadrada-resumen {
-  width: 140px;
-  height: 140px;
-  border-radius: 12px;
-  border: 2px solid #007bff;
-  object-fit: cover;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.15);
-}
+
 
 .nombre-empleado-resumen {
   font-size: 20px;
@@ -568,24 +561,6 @@ form select:focus {
   color: #003366;
 }
 
-.resumen-foto {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-
-.resumen-foto img {
-  width: 130px;
-  height: 130px;
-  border-radius: 10px; /* esquina redondeada leve, no círculo */
-  border: 4px solid #007bff;
-  object-fit: cover;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-}
-
-
 /* Nombre y DNI */
 #resumen-nombre {
   text-align: center;
@@ -777,10 +752,98 @@ input[type="file"]::file-selector-button:hover {
   background-color: #0056b3;
 }
 
-label[for="foto"] {
-  font-weight: 600;
-  margin-top: 12px;
-  display: block;
-  color: #333;
+/* Hace que los dos <p> salgan en una sola línea */
+.perfil-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
+
+/* Contenedor para agrupar DNI + RTN en la misma fila */
+.perfil-header .documentos-linea {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Estilo de las cajitas */
+.dni-empleado-resumen {
+  background-color: #f8f9fa;
+  color: #777;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
+}
+
+
+  /* Contenedor del campo */
+  .campo-grupo {
+    position: relative;
+    width: 100%;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Estilo base de inputs y selects */
+  .campo-grupo input,
+  .campo-grupo select {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #d0d7de;          
+    padding: 0.55rem 0.9rem;
+    font-size: 0.9rem;
+    background-color: #ffffff;
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  /* En foco (sin error) */
+  .campo-grupo input:focus,
+  .campo-grupo select:focus {
+    outline: none;
+    border-color: #1976d2;
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.10);
+  }
+
+  /* Campo con error: más formal, sin rojo fuerte de fondo */
+  .campo-grupo input.error,
+  .campo-grupo select.error {
+    border-color: #d32f2f;
+    background-color: #fffafa;          
+    box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.08);
+  }
+
+  
+  .error-badge {
+    position: absolute;
+    right: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.72rem;
+    color: #d32f2f;
+    font-weight: 500;
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    pointer-events: none;
+    max-width: 45%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    display: none;       
+  }
+
+  
+  .campo-grupo input[type="date"] {
+    padding-right: 7rem;
+  }
+
+  .campo-grupo input[type="date"] + .error-badge {
+    right: 2.5rem;
+  }
+
 

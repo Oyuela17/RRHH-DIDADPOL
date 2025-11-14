@@ -54,6 +54,7 @@
         <tr>
           <th>Nombre</th>
           <th>DNI</th>
+          <th>RTN</th>
           <th>Teléfono</th>
           <th>Acciones</th>
         </tr>
@@ -63,6 +64,7 @@
         <tr data-nombre="{{ $p['nombre_completo'] ?? '' }}" data-fecha="{{ $p['created_at'] ?? '' }}">
           <td>{{ $p['nombre_completo'] ?? '—' }}</td>
           <td>{{ $p['dni'] ?? '—' }}</td>
+          <td>{{ $p['rtn'] ?? '—' }}</td>
           <td>{{ $p['numero'] ?? '—' }}</td>
           <td>
             <button class="btn btn-info btn-sm" onclick="verDetalles({{ json_encode($p) }})">Ver Detalles</button>
@@ -70,7 +72,7 @@
         </tr>
         @empty
         <tr>
-          <td colspan="4" class="text-center">No hay personas registradas.</td>
+          <td colspan="5" class="text-center">No hay personas registradas.</td>
         </tr>
         @endforelse
       </tbody>
@@ -84,6 +86,7 @@
     <span class="cerrar" onclick="cerrarModal()">&times;</span>
     <h2 id="nombrePersona" class="nombre-persona">NOMBRE COMPLETO</h2>
     <div class="dni centrado" id="dniPersona">0801-2002-08924</div>
+    <div class="dni centrado" id="rtnPersona">RTN: —</div>
 
     <div class="bloque-detalle">
       <div class="fila"><span>Email:</span><span class="valor" id="emailPersona">—</span></div>
@@ -108,6 +111,8 @@
 function verDetalles(persona) {
   document.getElementById('nombrePersona').innerText = persona.nombre_completo || '—';
   document.getElementById('dniPersona').innerText = persona.dni || '—';
+  document.getElementById('rtnPersona').innerText = persona.rtn ? `RTN: ${persona.rtn}` : 'RTN: —';
+
   document.getElementById('emailPersona').innerText = persona.email_trabajo || '—';
   document.getElementById('telefonoPersona').innerText = persona.numero || '—';
   document.getElementById('direccionPersona').innerText = persona.direccion || '—';

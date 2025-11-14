@@ -13,8 +13,7 @@ use App\Models\ISRPlanilla;
 use App\Models\ControlAsistencia;
 use App\Models\Planilla;
 use App\Models\PersonaPlanilla; 
-use App\Models\EmpleadoContratoHistorial; // <-- usando historial para fecha y salario
-
+use App\Models\EmpleadoContratoHistorial; 
 class PlanillaController extends Controller
 {
     public function index(Request $request)
@@ -54,10 +53,10 @@ class PlanillaController extends Controller
     private function handleView()
     {
         // Nombres reales de tablas
-        $tblP   = (new Planilla)->getTable();                 // planillas
-        $tblPer = (new PersonaPlanilla)->getTable();          // personas
-        $tblEmp = (new EmpleadoPlanilla)->getTable();         // empleados
-        $tblHist= (new EmpleadoContratoHistorial)->getTable();// empleados_contratos_histor
+        $tblP   = (new Planilla)->getTable();                  // planillas
+        $tblPer = (new PersonaPlanilla)->getTable();           // personas
+        $tblEmp = (new EmpleadoPlanilla)->getTable();          // empleados
+        $tblHist= (new EmpleadoContratoHistorial)->getTable(); // empleados_contratos_histor
 
         // Existen tablas?
         $hasEmp  = Schema::hasTable($tblEmp);
@@ -94,22 +93,45 @@ class PlanillaController extends Controller
         // SELECT seguro: si falta una tabla/columna, devolvemos campo vacío o 0
         $selects = [
             'p.cod_persona',
-            DB::raw($hasPer ? "COALESCE(per.nombre_completo,'') AS nombre_completo" : "'' AS nombre_completo"),
-            DB::raw($hasPer ? "COALESCE(per.rtn,'') AS rtn" : "'' AS rtn"),
-            DB::raw($hasPer ? "COALESCE(per.dni,'') AS dni" : "'' AS dni"),
 
-            DB::raw(($hasPue && $hasEmp && Schema::hasColumn('puestos', 'nom_puesto'))
-                ? "COALESCE(pu.nom_puesto,'') AS nom_puesto" : "'' AS nom_puesto"),
+            DB::raw(
+                $hasPer && Schema::hasColumn($tblPer, 'nombre_completo')
+                    ? "COALESCE(per.nombre_completo,'') AS nombre_completo"
+                    : "'' AS nombre_completo"
+            ),
+
+            // ✅ RTN desde personas
+            DB::raw(
+                $hasPer && Schema::hasColumn($tblPer, 'rtn')
+                    ? "COALESCE(per.rtn,'') AS rtn"
+                    : "'' AS rtn"
+            ),
+
+            DB::raw(
+                $hasPer && Schema::hasColumn($tblPer, 'dni')
+                    ? "COALESCE(per.dni,'') AS dni"
+                    : "'' AS dni"
+            ),
+
+            DB::raw(
+                $hasPue && $hasEmp && Schema::hasColumn('puestos', 'nom_puesto')
+                    ? "COALESCE(pu.nom_puesto,'') AS nom_puesto"
+                    : "'' AS nom_puesto"
+            ),
 
             // Fecha de ingreso desde historial activo
-            DB::raw(($hasHist && $hasEmp && Schema::hasColumn($tblHist, 'fecha_inicio_contrato'))
-                ? "ch.fecha_inicio_contrato AS fecha_inicio_contrato"
-                : "NULL AS fecha_inicio_contrato"),
+            DB::raw(
+                $hasHist && $hasEmp && Schema::hasColumn($tblHist, 'fecha_inicio_contrato')
+                    ? "ch.fecha_inicio_contrato AS fecha_inicio_contrato"
+                    : "NULL AS fecha_inicio_contrato"
+            ),
 
             // Salario desde historial activo
-            DB::raw(($hasHist && $hasEmp && Schema::hasColumn($tblHist, 'salario'))
-                ? "COALESCE(ch.salario,0) AS salario"
-                : "0 AS salario"),
+            DB::raw(
+                $hasHist && $hasEmp && Schema::hasColumn($tblHist, 'salario')
+                    ? "COALESCE(ch.salario,0) AS salario"
+                    : "0 AS salario"
+            ),
 
             DB::raw("COALESCE(p.dd,0) AS dd"),
             DB::raw("COALESCE(p.dt,0) AS dt"),
@@ -164,10 +186,10 @@ class PlanillaController extends Controller
                 'no'                    => $i + 1,
                 'cod_persona'           => $r->cod_persona,
                 'nombre'                => $r->nombre_completo,
-                'rtn'                   => $r->rtn,
+                'rtn'                   => $r->rtn,     // ✅ Aquí ya sale RTN
                 'dni'                   => $r->dni,
                 'cargo'                 => $r->nom_puesto,
-                'fecha_ingreso'         => $fechaIngreso, // <- para la tabla
+                'fecha_ingreso'         => $fechaIngreso,
 
                 'salario'               => (float)($r->salario ?? 0),
                 'salariobruto'          => $salBruto,

@@ -7,6 +7,31 @@ use Illuminate\Support\Facades\Http;
 
 class EmpleadoController extends Controller
 {
+    // ============================
+    // 🔎 CONSULTA A API – DNI
+    // ============================
+    private function existeDNI($dni)
+    {
+        $resp = Http::get("https://rrhh-didadpol-1.onrender.com/api/personas/dni/" . urlencode($dni));
+        if ($resp->successful()) {
+            return $resp->json()['existe'] ?? false;
+        }
+        return false;
+    }
+
+    // ============================
+    // 🔎 CONSULTA A API – RTN
+    // ============================
+    private function existeRTN($rtn)
+    {
+        $resp = Http::get("https://rrhh-didadpol-1.onrender.com/api/personas/rtn/" . urlencode($rtn));
+        if ($resp->successful()) {
+            return $resp->json()['existe'] ?? false;
+        }
+        return false;
+    }
+
+    // ============================
     public function index(Request $request)
     {
         $busqueda = $request->input('busqueda');
@@ -30,6 +55,7 @@ class EmpleadoController extends Controller
         $items = $empleados->values();
         $total = $items->count();
         $paginados = $items->slice(($paginaActual - 1) * $cantidad, $cantidad);
+
         $empleadosPaginados = new \Illuminate\Pagination\LengthAwarePaginator(
             $paginados,
             $total,
@@ -43,9 +69,26 @@ class EmpleadoController extends Controller
         ]);
     }
 
+    // ============================
+    // 🟢 STORE
+    // ============================
     public function store(Request $request)
     {
         $this->validarEmpleado($request);
+
+        // 🔍 VALIDAR DNI ÚNICO
+        if ($this->existeDNI($request->dni)) {
+            return back()
+                ->withErrors(['dni' => 'El DNI ingresado ya está registrado en otro empleado.'])
+                ->withInput();
+        }
+
+        // 🔍 VALIDAR RTN ÚNICO
+        if ($request->rtn && $this->existeRTN($request->rtn)) {
+            return back()
+                ->withErrors(['rtn' => 'El RTN ingresado ya está registrado en otro empleado.'])
+                ->withInput();
+        }
 
         $multipart = $this->crearMultipart($request, 'usr_registro');
 
@@ -58,9 +101,32 @@ class EmpleadoController extends Controller
         }
     }
 
+    // ============================
+    // 🟡 UPDATE
+    // ============================
     public function update(Request $request, $id)
     {
         $this->validarEmpleado($request);
+
+        // 📌 Obtener datos actuales del empleado desde Node
+        $empleadoActual = Http::get("https://rrhh-didadpol-1.onrender.com/api/empleados/$id")->json();
+
+        $dniOriginal = $empleadoActual['dni'] ?? null;
+        $rtnOriginal = $empleadoActual['rtn'] ?? null;
+
+        // 🔍 Validar cambio de DNI
+        if ($request->dni !== $dniOriginal && $this->existeDNI($request->dni)) {
+            return back()
+                ->withErrors(['dni' => 'El DNI ingresado ya está registrado en otro empleado.'])
+                ->withInput();
+        }
+
+        // 🔍 Validar cambio de RTN
+        if ($request->rtn && $request->rtn !== $rtnOriginal && $this->existeRTN($request->rtn)) {
+            return back()
+                ->withErrors(['rtn' => 'El RTN ingresado ya está registrado en otro empleado.'])
+                ->withInput();
+        }
 
         $multipart = $this->crearMultipart($request, 'usr_modificacion');
 
@@ -73,6 +139,7 @@ class EmpleadoController extends Controller
         }
     }
 
+    // ============================
     public function destroy($id)
     {
         $respuesta = Http::delete("https://rrhh-didadpol-1.onrender.com/api/empleados/{$id}");
@@ -84,12 +151,14 @@ class EmpleadoController extends Controller
         }
     }
 
-    // 🔁 Método para validar campos (reutilizado)
+    // ============================
     private function validarEmpleado(Request $request)
     {
         $request->validate([
             'nombre_completo' => 'required|string|max:100',
             'dni' => 'required|string|max:20',
+            'rtn' => 'nullable|string|max:20',
+
             'email_trabajo' => 'nullable|email',
             'telefono' => 'required|string',
             'direccion' => 'required|string',
@@ -114,11 +183,10 @@ class EmpleadoController extends Controller
             'cod_terminacion_contrato' => 'nullable|integer',
             'cod_tipo_empleado' => 'required|integer',
             'es_jefe' => 'required|boolean',
-            'foto_persona' => 'nullable|image|max:2048',
         ]);
     }
 
-    // 📦 Método para crear multipart (reutilizado para store y update)
+    // ============================
     private function crearMultipart(Request $request, $usuarioCampo)
     {
         $multipart = [];

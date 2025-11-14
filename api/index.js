@@ -76,7 +76,7 @@ app.get('/api/bitacora', async (req, res) => {
       q,
       desde,
       hasta,
-      incluir_sesiones,          // (opcional) ya no es tan necesario, pero lo dejamos
+      incluir_sesiones,          
       page = '1',
       limit = '20',
       sort = 'fecha',
@@ -1435,7 +1435,7 @@ app.get('/api/empleados', async (req, res) => {
       p.lugar_nacimiento,
       p.nacionalidad,
       p.dni,
-      p.foto_persona,
+      p.rtn,
 
       d.direccion,
       m.nom_municipio,
@@ -1487,16 +1487,281 @@ app.get('/api/empleados', async (req, res) => {
   }
 });
 
-// RUTA PARA REGISTRAR EMPLEADO
 
-app.post('/api/empleados', upload.single('foto_persona'), async (req, res) => {
+
+// ===============================
+// Helpers de validación - Empleados
+// ===============================
+
+function esSoloLetrasYEspacios(str = '') {
+  return /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]+$/.test(String(str).trim());
+}
+
+function contarPalabras(str = '') {
+  const limpio = String(str).trim().replace(/\s+/g, ' ');
+  if (!limpio) return 0;
+  return limpio.split(' ').length;
+}
+
+function esSoloDigitos(str = '') {
+  return /^\d+$/.test(String(str).trim());
+}
+
+function isEmailValido(str = '') {
+  const email = String(str).trim();
+  // Regex sencilla para email
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function parseFecha(str) {
+  if (!str) return null;
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
+function calcularEdad(fechaNacimiento) {
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
+  const m = hoy.getMonth() - fechaNacimiento.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < fechaNacimiento.getDate())) {
+    edad--;
+  }
+  return edad;
+}
+
+// =====================================
+// Validar payload de empleados
+// =====================================
+function validarEmpleadoPayload(body, esEdicion = false) {
+  const errores = {};
+
+  const {
+    nombre_completo, genero, estado_civil, fec_nacimiento,
+    lugar_nacimiento, nacionalidad, dni, rtn,
+    direccion, cod_municipio,
+    telefono, telefono_emergencia, nombre_contacto_emergencia,
+    cod_tipo_modalidad, cod_puesto, cod_oficina, cod_nivel_educativo,
+    cod_horario, es_jefe, fecha_contratacion, fecha_notificacion,
+    cod_tipo_empleado, email_trabajo, salario,
+    fecha_inicio_contrato, fecha_final_contrato,
+    contrato_activo, cod_terminacion_contrato,
+  } = body;
+
+  // ================= NOMBRE COMPLETO =================
+  if (!nombre_completo || !String(nombre_completo).trim()) {
+    errores.nombre_completo = 'El nombre completo es obligatorio.';
+  } else {
+    const nombre = String(nombre_completo).trim();
+    if (!esSoloLetrasYEspacios(nombre)) {
+      errores.nombre_completo = 'El nombre solo puede contener letras y espacios.';
+    } else {
+      const palabras = contarPalabras(nombre);
+      if (palabras > 4) {
+        errores.nombre_completo =
+          'El nombre completo no puede tener más de 4 palabras (2 nombres y 2 apellidos).';
+      } else if (palabras < 2) {
+        errores.nombre_completo = 'Ingrese al menos nombre y primer apellido.';
+      }
+    }
+  }
+
+  // ================= DNI (con o sin guiones) =================
+  if (!dni || !String(dni).trim()) {
+    errores.dni = 'El DNI es obligatorio.';
+  } else {
+    const dniSoloDigitos = String(dni).replace(/\D/g, ''); // quita guiones, espacios, etc.
+    if (!esSoloDigitos(dniSoloDigitos) || dniSoloDigitos.length !== 13) {
+      errores.dni = 'El DNI debe contener exactamente 13 dígitos numéricos.';
+    }
+  }
+
+  // ================= RTN (sin guiones: 14 dígitos) =================
+  if (!rtn || !String(rtn).trim()) {
+    errores.rtn = 'El RTN es obligatorio.';
+  } else {
+    const rtnSoloDigitos = String(rtn).replace(/\D/g, '');
+    if (!esSoloDigitos(rtnSoloDigitos) || rtnSoloDigitos.length !== 14) {
+      errores.rtn = 'El RTN debe contener exactamente 14 dígitos numéricos.';
+    }
+  }
+
+  // ================= CORREO INSTITUCIONAL =================
+  if (!email_trabajo || !String(email_trabajo).trim()) {
+    errores.email_trabajo = 'El correo institucional es obligatorio.';
+  } else if (!isEmailValido(email_trabajo)) {
+    errores.email_trabajo = 'Ingrese un correo institucional válido.';
+  }
+
+  // ================= TELÉFONOS (acepta +504 9999-9999) =================
+  if (!telefono || !String(telefono).trim()) {
+    errores.telefono = 'El teléfono principal es obligatorio.';
+  } else {
+    const telDigitos = String(telefono).replace(/\D/g, ''); // +, espacios y guiones fuera
+    if (!esSoloDigitos(telDigitos) || telDigitos.length !== 11) {
+      errores.telefono = 'El teléfono principal debe ser +504 y 8 dígitos (ej: +504 9999-9999).';
+    }
+  }
+
+  if (!telefono_emergencia || !String(telefono_emergencia).trim()) {
+    errores.telefono_emergencia = 'El teléfono de emergencia es obligatorio.';
+  } else {
+    const telEmerDigitos = String(telefono_emergencia).replace(/\D/g, '');
+    if (!esSoloDigitos(telEmerDigitos) || telEmerDigitos.length !== 11) {
+      errores.telefono_emergencia =
+        'El teléfono de emergencia debe ser +504 y 8 dígitos (ej: +504 9999-9999).';
+    }
+  }
+
+  // ================= CONTACTO EMERGENCIA =================
+  if (!nombre_contacto_emergencia || !String(nombre_contacto_emergencia).trim()) {
+    errores.nombre_contacto_emergencia = 'El nombre de contacto de emergencia es obligatorio.';
+  } else {
+    const nomEmer = String(nombre_contacto_emergencia).trim();
+    if (!esSoloLetrasYEspacios(nomEmer)) {
+      errores.nombre_contacto_emergencia =
+        'El nombre de contacto de emergencia solo puede contener letras y espacios.';
+    } else {
+      const palabrasEmer = contarPalabras(nomEmer);
+      if (palabrasEmer > 4) {
+        errores.nombre_contacto_emergencia =
+          'El nombre de contacto de emergencia no puede tener más de 4 palabras.';
+      } else if (palabrasEmer < 2) {
+        errores.nombre_contacto_emergencia =
+          'Ingrese al menos nombre y primer apellido del contacto de emergencia.';
+      }
+    }
+  }
+
+  // ================= CAMPOS GENERALES OBLIGATORIOS =================
+  if (!genero) errores.genero = 'El género es obligatorio.';
+  if (!estado_civil) errores.estado_civil = 'El estado civil es obligatorio.';
+
+  if (!lugar_nacimiento || !String(lugar_nacimiento).trim()) {
+    errores.lugar_nacimiento = 'El lugar de nacimiento es obligatorio.';
+  }
+  if (!nacionalidad || !String(nacionalidad).trim()) {
+    errores.nacionalidad = 'La nacionalidad es obligatoria.';
+  }
+
+  if (!direccion || !String(direccion).trim()) {
+    errores.direccion = 'La dirección es obligatoria.';
+  }
+  if (!cod_municipio) {
+    errores.cod_municipio = 'El municipio es obligatorio.';
+  }
+
+  // ================= FECHA DE NACIMIENTO =================
+  if (!fec_nacimiento) {
+    errores.fec_nacimiento = 'La fecha de nacimiento es obligatoria.';
+  } else {
+    const fNac = parseFecha(fec_nacimiento);
+    if (!fNac) {
+      errores.fec_nacimiento = 'La fecha de nacimiento no es válida.';
+    } else {
+      const hoy = new Date();
+      if (fNac > hoy) {
+        errores.fec_nacimiento = 'La fecha de nacimiento no puede ser futura.';
+      } else {
+        const edad = calcularEdad(fNac);
+        if (edad < 18) {
+          errores.fec_nacimiento = 'El empleado debe ser mayor de 18 años.';
+        }
+      }
+    }
+  }
+
+  // ================= DATOS LABORALES =================
+  if (!cod_tipo_modalidad) errores.cod_tipo_modalidad = 'La modalidad es obligatoria.';
+  if (!cod_puesto) errores.cod_puesto = 'El puesto es obligatorio.';
+  if (!cod_oficina) errores.cod_oficina = 'La oficina es obligatoria.';
+  if (!cod_nivel_educativo) errores.cod_nivel_educativo = 'El nivel educativo es obligatorio.';
+  if (!cod_horario) errores.cod_horario = 'El horario es obligatorio.';
+  if (!cod_tipo_empleado) errores.cod_tipo_empleado = 'El tipo de empleado es obligatorio.';
+
+  // ================= FECHAS LABORALES =================
+  const fContratacion = fecha_contratacion ? parseFecha(fecha_contratacion) : null;
+  const fNotif        = fecha_notificacion ? parseFecha(fecha_notificacion) : null;
+  const fIni          = fecha_inicio_contrato ? parseFecha(fecha_inicio_contrato) : null;
+  const fFin          = fecha_final_contrato ? parseFecha(fecha_final_contrato) : null;
+
+  if (!fContratacion) {
+    errores.fecha_contratacion = 'La fecha de contratación es obligatoria y debe ser válida.';
+  }
+
+  if (fecha_notificacion && !fNotif) {
+    errores.fecha_notificacion = 'La fecha de notificación no es válida.';
+  }
+
+  if (!fIni) {
+    errores.fecha_inicio_contrato =
+      'La fecha de inicio de contrato es obligatoria y debe ser válida.';
+  }
+
+  if (fecha_final_contrato && !fFin) {
+    errores.fecha_final_contrato = 'La fecha final de contrato no es válida.';
+  }
+
+  // Orden lógico de fechas: contratación <= inicio <= fin
+  if (fContratacion && fIni && fContratacion > fIni) {
+    errores.fecha_inicio_contrato =
+      'La fecha de inicio de contrato no puede ser anterior a la fecha de contratación.';
+  }
+  if (fIni && fFin && fIni > fFin) {
+    errores.fecha_final_contrato =
+      'La fecha final de contrato no puede ser anterior a la fecha de inicio.';
+  }
+
+  // ================= SALARIO =================
+  if (salario == null || salario === '' || isNaN(Number(salario))) {
+    errores.salario = 'El salario es obligatorio y debe ser numérico.';
+  } else if (Number(salario) <= 0) {
+    errores.salario = 'El salario debe ser mayor que cero.';
+  }
+
+  // ================= CONTRATO ACTIVO / TERMINACIÓN =================
+  const contratoActivoBool =
+    contrato_activo === true ||
+    contrato_activo === 'true' ||
+    contrato_activo === 1 ||
+    contrato_activo === '1';
+
+  if (contrato_activo === undefined || contrato_activo === null || contrato_activo === '') {
+    errores.contrato_activo = 'El estado del contrato (activo/inactivo) es obligatorio.';
+  }
+
+  if (!contratoActivoBool) {
+    // Contrato inactivo → debe tener terminación y fecha final
+    if (!cod_terminacion_contrato) {
+      errores.cod_terminacion_contrato = 'Debe indicar el motivo de terminación del contrato.';
+    }
+    if (!fFin) {
+      errores.fecha_final_contrato =
+        'Para contratos inactivos, la fecha final de contrato es obligatoria.';
+    }
+  }
+
+  return errores;
+}
+
+
+// ============================
+// RUTA PARA REGISTRAR EMPLEADO
+// ============================
+app.post('/api/empleados', upload.none(), async (req, res) => {
+  // Validar payload antes de tocar la BD
+  const errores = validarEmpleadoPayload(req.body, false);
+  if (Object.keys(errores).length > 0) {
+    return res.status(400).json({ errores });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const {
       nombre_completo, genero, estado_civil, fec_nacimiento,
-      lugar_nacimiento, nacionalidad, dni,
+      lugar_nacimiento, nacionalidad, dni, rtn,
       direccion, cod_municipio,
       telefono, telefono_emergencia, nombre_contacto_emergencia,
       cod_tipo_modalidad, cod_puesto, cod_oficina, cod_nivel_educativo,
@@ -1507,18 +1772,17 @@ app.post('/api/empleados', upload.single('foto_persona'), async (req, res) => {
       usr_registro
     } = req.body;
 
-    const foto_persona = req.file ? req.file.filename : null;
-
     // 1. Insertar en personas
     const personaResult = await client.query(`
       INSERT INTO personas (
         nombre_completo, genero, estado_civil, fec_nacimiento,
-        lugar_nacimiento, nacionalidad, dni, foto_persona,
+        lugar_nacimiento, nacionalidad, dni, rtn,
         fec_registro, usr_registro
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9) RETURNING cod_persona
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),$9)
+      RETURNING cod_persona
     `, [
       nombre_completo, genero, estado_civil, fec_nacimiento,
-      lugar_nacimiento, nacionalidad, dni, foto_persona,
+      lugar_nacimiento, nacionalidad, dni, rtn,
       usr_registro
     ]);
 
@@ -1560,6 +1824,13 @@ app.post('/api/empleados', upload.single('foto_persona'), async (req, res) => {
     // Asegurar valor por defecto para usr_registro
     const usuarioRegistro = usr_registro || 'sistema';
 
+    // Normalizar contrato_activo para la inserción
+    const contratoActivoBool =
+      contrato_activo === true ||
+      contrato_activo === 'true' ||
+      contrato_activo === 1 ||
+      contrato_activo === '1';
+
     // 5. Contrato
     await client.query(`
       INSERT INTO empleados_contratos_histor (
@@ -1572,10 +1843,11 @@ app.post('/api/empleados', upload.single('foto_persona'), async (req, res) => {
       )
     `, [
       cod_empleado, cod_tipo_empleado, cod_puesto,
-      fecha_inicio_contrato, fecha_final_contrato,
-      salario, contrato_activo, usuarioRegistro,
-      contrato_activo ? null : cod_terminacion_contrato
+      fecha_inicio_contrato, fecha_final_contrato || null,
+      salario, contratoActivoBool, usuarioRegistro,
+      contratoActivoBool ? null : cod_terminacion_contrato
     ]);
+
     await client.query('COMMIT');
     res.json({ mensaje: 'Empleado registrado exitosamente' });
 
@@ -1588,9 +1860,16 @@ app.post('/api/empleados', upload.single('foto_persona'), async (req, res) => {
   }
 });
 
+// ============================
+// Gestión de empleados - PUT (editar)
+// ============================
+app.put('/api/empleados/:id', upload.none(), async (req, res) => {
+  // Validar payload antes de tocar la BD
+  const errores = validarEmpleadoPayload(req.body, true);
+  if (Object.keys(errores).length > 0) {
+    return res.status(400).json({ errores });
+  }
 
-// Gestion de empleados - PUT (editar)
-app.put('/api/empleados/:id', upload.single('foto_persona'), async (req, res) => {
   const client = await pool.connect();
   const cod_empleado = req.params.id;
 
@@ -1599,7 +1878,7 @@ app.put('/api/empleados/:id', upload.single('foto_persona'), async (req, res) =>
 
     const {
       nombre_completo, genero, estado_civil, fec_nacimiento,
-      lugar_nacimiento, nacionalidad, dni,
+      lugar_nacimiento, nacionalidad, dni, rtn,
       direccion, cod_municipio,
       telefono, telefono_emergencia, nombre_contacto_emergencia,
       cod_tipo_modalidad, cod_puesto, cod_oficina, cod_nivel_educativo,
@@ -1610,15 +1889,15 @@ app.put('/api/empleados/:id', upload.single('foto_persona'), async (req, res) =>
       usr_modificacion
     } = req.body;
 
-    const foto_persona = req.file ? req.file.filename : null;
-
     // Obtener cod_persona desde empleados
     const personaRes = await client.query(
       `SELECT cod_persona FROM empleados WHERE cod_empleado = $1`,
       [cod_empleado]
     );
     const cod_persona = personaRes.rows[0]?.cod_persona;
-    if (!cod_persona) throw new Error('Empleado no encontrado');
+    if (!cod_persona) {
+      throw new Error('Empleado no encontrado');
+    }
 
     // 1. Actualizar persona
     await client.query(`
@@ -1630,13 +1909,13 @@ app.put('/api/empleados/:id', upload.single('foto_persona'), async (req, res) =>
         lugar_nacimiento = $5,
         nacionalidad = $6,
         dni = $7,
-        ${foto_persona ? `foto_persona = '${foto_persona}',` : ''}
+        rtn = $8,
         fec_modificacion = NOW(),
-        usr_modificacion = $8
-      WHERE cod_persona = $9
+        usr_modificacion = $9
+      WHERE cod_persona = $10
     `, [
       nombre_completo, genero, estado_civil, fec_nacimiento,
-      lugar_nacimiento, nacionalidad, dni,
+      lugar_nacimiento, nacionalidad, dni, rtn,
       usr_modificacion, cod_persona
     ]);
 
@@ -1683,6 +1962,12 @@ app.put('/api/empleados/:id', upload.single('foto_persona'), async (req, res) =>
       email_trabajo, cod_tipo_empleado, usr_modificacion, cod_empleado
     ]);
 
+    const contratoActivoBool =
+      contrato_activo === true ||
+      contrato_activo === 'true' ||
+      contrato_activo === 1 ||
+      contrato_activo === '1';
+
     // 5. Actualizar contrato actual (último activo)
     await client.query(`
       UPDATE empleados_contratos_histor SET
@@ -1698,9 +1983,9 @@ app.put('/api/empleados/:id', upload.single('foto_persona'), async (req, res) =>
       WHERE cod_empleado = $9 AND contrato_activo = true
     `, [
       cod_tipo_empleado, cod_puesto,
-      fecha_inicio_contrato, fecha_final_contrato,
-      salario, contrato_activo,
-      contrato_activo ? null : cod_terminacion_contrato,
+      fecha_inicio_contrato, fecha_final_contrato || null,
+      salario, contratoActivoBool,
+      contratoActivoBool ? null : cod_terminacion_contrato,
       usr_modificacion, cod_empleado
     ]);
 
@@ -1716,6 +2001,9 @@ app.put('/api/empleados/:id', upload.single('foto_persona'), async (req, res) =>
   }
 });
 
+// ============================
+//  DNI (con guiones en la BD)
+// ============================
 app.get('/api/personas/dni/:dni', async (req, res) => {
   const { dni } = req.params;
   try {
@@ -1730,9 +2018,29 @@ app.get('/api/personas/dni/:dni', async (req, res) => {
   }
 });
 
+// ============================
+//  RTN (sin guiones en la BD)
+// ============================
+app.get('/api/personas/rtn/:rtn', async (req, res) => {
+  try {
+    const rtnParam = req.params.rtn || '';
+    const rtnSoloDigitos = rtnParam.replace(/\D/g, '');
+
+    const result = await pool.query(
+      'SELECT cod_persona FROM personas WHERE rtn = $1',
+      [rtnSoloDigitos]
+    );
+
+    res.json({ existe: result.rows.length > 0 });
+  } catch (error) {
+    console.error('Error al verificar el RTN:', error);
+    res.status(500).json({ error: 'Error al verificar el RTN' });
+  }
+});
 
 
-// Gestion de empleado - Eliminar 
+
+// Gestión de empleado - Eliminar 
 app.delete('/api/empleados/:id', async (req, res) => {
   const client = await pool.connect();
   const cod_empleado = req.params.id;
@@ -1787,6 +2095,7 @@ app.delete('/api/empleados/:id', async (req, res) => {
     client.release();
   }
 });
+
 
 // Obtener todos los municipios
 app.get('/api/municipios', async (req, res) => {
@@ -2526,8 +2835,7 @@ app.put('/api/datos_empresa/:id', async (req, res) => {
   }
 });
 
-//Personas 
- 
+// Personas 
 app.get('/api/personas/detalle', async (req, res) => {
   try {
     const query = `
@@ -2535,12 +2843,12 @@ app.get('/api/personas/detalle', async (req, res) => {
         p.cod_persona,
         p.nombre_completo,
         p.dni,
+        p.rtn,
         p.genero,
         p.estado_civil,
         p.fec_nacimiento,
         p.lugar_nacimiento,
         p.nacionalidad,
-        p.foto_persona,
         p.fec_registro AS fec_registro_persona,
 
         -- Dirección y Municipio

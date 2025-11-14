@@ -1144,56 +1144,57 @@ function mostrarPaso(n) {
   });
 
   document.querySelectorAll('.btn-editar-empleado').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const datos = JSON.parse(btn.getAttribute('data-empleado'));
-      modoEdicion = true;
-      empleadoEditandoId = datos.cod_empleado;
-      dniOriginalEdicion = datos.dni || null;
-      rtnOriginalEdicion = datos.rtn || null;
+  btn.addEventListener('click', async () => {
+    const datos = JSON.parse(btn.getAttribute('data-empleado'));
+    modoEdicion = true;
+    empleadoEditandoId = datos.cod_empleado;
+    dniOriginalEdicion = datos.dni || null;
+    rtnOriginalEdicion = datos.rtn || null;
 
-      document.getElementById('modalRegistroEmpleado').style.display = 'flex';
-      pasoActual = 1;
-      limpiarErrores();
-      mostrarPaso(1);
+    pasoActual = 1;
+    limpiarErrores();
 
-      await cargarDatosSelects();
+    await cargarDatosSelects();
 
-      const form = document.getElementById('formRegistroEmpleado');
-      form.nombre_completo.value = datos.nombre_completo || '';
-      form.dni.value             = datos.dni || '';
-      form.rtn.value             = datos.rtn || '';
-      form.email_trabajo.value   = datos.email_trabajo || '';
-      form.telefono.value        = datos.telefono || '';
-      form.direccion.value       = datos.direccion || '';
+    const form = document.getElementById('formRegistroEmpleado');
+    form.nombre_completo.value = datos.nombre_completo || '';
+    form.dni.value             = datos.dni || '';
+    form.rtn.value             = datos.rtn || '';
+    form.email_trabajo.value   = datos.email_trabajo || '';
+    form.telefono.value        = datos.telefono || '';
+    form.direccion.value       = datos.direccion || '';
 
-      form.nombre_contacto_emergencia.value = datos.nombre_contacto_emergencia || '';
-      form.telefono_emergencia.value        = datos.telefono_emergencia || '';
-      form.fec_nacimiento.value             = datos.fec_nacimiento?.substring(0,10) || '';
-      form.lugar_nacimiento.value           = datos.lugar_nacimiento || '';
-      form.nacionalidad.value               = datos.nacionalidad || '';
+    form.nombre_contacto_emergencia.value = datos.nombre_contacto_emergencia || '';
+    form.telefono_emergencia.value        = datos.telefono_emergencia || '';
+    form.fec_nacimiento.value             = datos.fec_nacimiento?.substring(0,10) || '';
+    form.lugar_nacimiento.value           = datos.lugar_nacimiento || '';
+    form.nacionalidad.value               = datos.nacionalidad || '';
 
-      document.getElementById('selectMunicipio').value      = datos.cod_municipio || '';
-      document.getElementById('selectGenero').value         = datos.genero || '';
-      document.getElementById('selectEstadoCivil').value    = datos.estado_civil || '';
-      document.getElementById('selectModalidad').value      = datos.cod_tipo_modalidad || '';
-      document.getElementById('selectPuesto').value         = datos.cod_puesto || '';
-      document.getElementById('selectTipoEmpleado').value   = datos.cod_tipo_empleado || '';
-      document.getElementById('selectNivelEducativo').value = datos.cod_nivel_educativo || '';
-      document.getElementById('selectOficina').value        = datos.cod_oficina || '';
-      document.getElementById('selectHorario').value        = datos.cod_horario || '';
-      document.getElementById('contrato_activo').value      = datos.contrato_activo ? 'true' : 'false';
+    document.getElementById('selectMunicipio').value      = datos.cod_municipio || '';
+    document.getElementById('selectGenero').value         = datos.genero || '';
+    document.getElementById('selectEstadoCivil').value    = datos.estado_civil || '';
+    document.getElementById('selectModalidad').value      = datos.cod_tipo_modalidad || '';
+    document.getElementById('selectPuesto').value         = datos.cod_puesto || '';
+    document.getElementById('selectTipoEmpleado').value   = datos.cod_tipo_empleado || '';
+    document.getElementById('selectNivelEducativo').value = datos.cod_nivel_educativo || '';
+    document.getElementById('selectOficina').value        = datos.cod_oficina || '';
+    document.getElementById('selectHorario').value        = datos.cod_horario || '';
+    document.getElementById('contrato_activo').value      = datos.contrato_activo ? 'true' : 'false';
 
-      form.fecha_contratacion.value    = datos.fecha_contratacion?.substring(0,10) || '';
-      form.fecha_inicio_contrato.value = datos.fecha_inicio_contrato?.substring(0,10) || '';
-      form.fecha_final_contrato.value  = datos.fecha_final_contrato?.substring(0,10) || '';
+    form.fecha_contratacion.value    = datos.fecha_contratacion?.substring(0,10) || '';
+    form.fecha_inicio_contrato.value = datos.fecha_inicio_contrato?.substring(0,10) || '';
+    form.fecha_final_contrato.value  = datos.fecha_final_contrato?.substring(0,10) || '';
 
-      setSalario(datos.salario);
+    setSalario(datos.salario);
 
-      // Revalidar todo para quitar rojos innecesarios en edición
-      Object.values(camposRequeridosPorPaso).flat().forEach(id => validarCampo(id));
-      actualizarBotones();
-    });
+    mostrarPaso(1);
+    document.getElementById('modalRegistroEmpleado').style.display = 'flex';
+
+    Object.values(camposRequeridosPorPaso).flat().forEach(id => validarCampo(id));
+    actualizarBotones();
   });
+});
+
 
   document.querySelectorAll('.btn-ver-detalles').forEach(btn => {
     btn.addEventListener('click', () => {

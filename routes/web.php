@@ -71,6 +71,8 @@ Route::delete('/calendario/eliminar-evento/{id}', [CalendarioController::class, 
 
 //Control de Asistencia (Administrador)
 
+  // semana
+Route::post('/control-asistencia/admin/manual/semana',[ControlAsistenciaAdminController::class, 'manualSemana'])->name('control_asistencia.admin.manual.semana');
 Route::prefix('control-asistencia')->group(function () {
     // Vista principal (admin)
 Route::get('/admin', [ControlAsistenciaAdminController::class, 'index'])->name('control_asistencia.admin');
@@ -86,6 +88,7 @@ Route::put('/control-asistencia/admin/manual', [ControlAsistenciaAdminController
 // Asistencia
 Route::get('/asistencia', [ControlAsistenciaController::class, 'index'])->name('asistencia.index');
 Route::post('/asistencia/punch', [ControlAsistenciaController::class, 'registrar'])->name('asistencia.punch');
+Route::post('/asistencia/almuerzo', [ControlAsistenciaController::class, 'registrarAlmuerzo'])->name('asistencia.almuerzo');
 
 
 // Ruta raíz (puedes cambiar welcome por login si lo deseas)

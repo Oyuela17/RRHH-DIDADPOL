@@ -12,24 +12,20 @@ use App\Exports\AsistenciaExport;
 
 class ControlAsistenciaAdminController extends Controller
 {
-    /** Endpoints de tu API Node (ajusta si cambian) */
     private string $apiVistaMes   = 'https://rrhh-didadpol-1.onrender.com/api/control-asistencia/mes';
     private string $apiPDF        = 'https://rrhh-didadpol-1.onrender.com/api/control-asistencia/pdf';
-    private string $apiAdminBase  = 'https://rrhh-didadpol-1.onrender.com/api/control-asistencia/admin'; // PUT /manual, PATCH /{id}
+    private string $apiAdminBase  = 'https://rrhh-didadpol-1.onrender.com/api/control-asistencia/admin'; 
 
-    /** Zona horaria para cálculos locales */
+
     private string $tz = 'America/Tegucigalpa';
 
-    /**
-     * Vista admin (mes por defecto). El front ya sabe “filtrar” visualmente por semana.
-     */
     public function index(Request $request)
     {
         $mes     = (int) $request->input('mes', now()->month);
         $anio    = (int) $request->input('anio', now()->year);
         $nombre  = $request->input('nombre');
-        $vista   = $request->input('vista', 'mes');     // mes | semana
-        $semana  = $request->input('semana');           // ISO: YYYY-Www
+        $vista   = $request->input('vista', 'mes');    
+        $semana  = $request->input('semana');           
 
         try {
             $response = Http::timeout(15)->acceptJson()->get($this->apiVistaMes, [
@@ -143,24 +139,30 @@ class ControlAsistenciaAdminController extends Controller
 
     /**
      * UPSERT manual mediante PUT (crea o actualiza por cod_empleado+fecha).
-     * Requiere en la API: PUT {$apiAdminBase}/manual
+     * Requiere en la API: PUT {$this->apiAdminBase}/manual
      */
     public function manualUpsert(Request $request)
     {
         $data = $request->validate([
-            'cod_empleado'  => 'required|integer',
-            'fecha'         => 'required|date_format:Y-m-d',
-            'hora_entrada'  => 'nullable|date_format:H:i',
-            'hora_salida'   => 'nullable|date_format:H:i',
-            'observacion'   => 'nullable|string|max:200',
+            'cod_empleado'    => 'required|integer',
+            'fecha'           => 'required|date_format:Y-m-d',
+            'hora_entrada'    => 'nullable|date_format:H:i',
+            'hora_salida'     => 'nullable|date_format:H:i',
+            'almuerzo_inicio' => 'nullable|date_format:H:i',
+            'almuerzo_fin'    => 'nullable|date_format:H:i',
+            'observacion'     => 'nullable|string|max:200',
         ], [
-            'fecha.date_format'        => 'La fecha debe ser YYYY-MM-DD.',
-            'hora_entrada.date_format' => 'La hora de entrada debe ser HH:MM.',
-            'hora_salida.date_format'  => 'La hora de salida debe ser HH:MM.',
+            'fecha.date_format'            => 'La fecha debe ser YYYY-MM-DD.',
+            'hora_entrada.date_format'     => 'La hora de entrada debe ser HH:MM.',
+            'hora_salida.date_format'      => 'La hora de salida debe ser HH:MM.',
+            'almuerzo_inicio.date_format'  => 'La hora de inicio de almuerzo debe ser HH:MM.',
+            'almuerzo_fin.date_format'     => 'La hora de fin de almuerzo debe ser HH:MM.',
         ]);
 
-        $entrada = $data['hora_entrada'] ?? null;
-        $salida  = $data['hora_salida']  ?? null;
+        $entrada = $data['hora_entrada']    ?? null;
+        $salida  = $data['hora_salida']     ?? null;
+        $almIni  = $data['almuerzo_inicio'] ?? null;
+        $almFin  = $data['almuerzo_fin']    ?? null;
 
         // Coherencia previa
         if ($salida && !$entrada) {
@@ -173,6 +175,12 @@ class ControlAsistenciaAdminController extends Controller
         // Observación automática si procede
         if ($entrada && $salida && empty($data['observacion'])) {
             $data['observacion'] = $this->calcularObservacion($entrada, $salida);
+        }
+
+        // Almuerzo por defecto si es asistencia manual con jornada completa
+        if ($entrada && $salida && !$almIni && !$almFin) {
+            $data['almuerzo_inicio'] = '12:00';
+            $data['almuerzo_fin']    = '13:00';
         }
 
         // Origen fijo: manual
@@ -199,19 +207,125 @@ class ControlAsistenciaAdminController extends Controller
     }
 
     /**
-     * (Opcional) Actualizar por ID con PATCH si sigues usando edición directa.
-     * Requiere en la API: PATCH {$apiAdminBase}/{id}
+     * Registrar asistencia manual para varios días de una semana ISO.
+     * Ruta: control_asistencia.admin.manual.semana
      */
-    public function manualUpdate($id, Request $request)
+    public function manualSemana(Request $request)
     {
         $data = $request->validate([
-            'hora_entrada' => 'nullable|date_format:H:i',
-            'hora_salida'  => 'nullable|date_format:H:i',
-            'observacion'  => 'nullable|string|max:200',
+            'cod_empleado'  => 'required|integer',
+            'semana_iso'    => 'required|regex:/^\d{4}-W\d{2}$/', // ej. 2025-W46
+            'dias'          => 'required|array|min:1',
+            'dias.*'        => 'integer|between:1,7',             // 1 = lunes ... 7 = domingo (CORREGIDO)
+            'hora_entrada'  => 'nullable|date_format:H:i',
+            'hora_salida'   => 'nullable|date_format:H:i',
+        ], [
+            'semana_iso.regex' => 'La semana no tiene el formato correcto (YYYY-Www).',
+            'dias.required'    => 'Seleccione al menos un día de la semana.',
         ]);
 
         $entrada = $data['hora_entrada'] ?? null;
         $salida  = $data['hora_salida']  ?? null;
+
+        // Coherencia básica
+        if ($salida && !$entrada) {
+            return back()->with('error', 'Para definir una salida, primero indique la hora de entrada.')->withInput();
+        }
+        if ($entrada && $salida && $salida < $entrada) {
+            return back()->with('error', 'La hora de salida no puede ser menor que la de entrada.')->withInput();
+        }
+
+        $observacion = null;
+        if ($entrada && $salida) {
+            $observacion = $this->calcularObservacion($entrada, $salida);
+        }
+
+        // Almuerzo por defecto si hay jornada completa
+        $almIni = null;
+        $almFin = null;
+        if ($entrada && $salida) {
+            $almIni = '12:00';
+            $almFin = '13:00';
+        }
+
+        // Calcular lunes de la semana ISO
+        [$anioStr, $semStr] = explode('-W', $data['semana_iso']);
+        $anio   = (int) $anioStr;
+        $numSem = (int) $semStr;
+
+        $ref   = new \DateTimeImmutable('now', new \DateTimeZone($this->tz));
+        $lunes = $ref->setISODate($anio, $numSem, 1); // 1 = lunes
+
+        $ok = 0;
+
+        foreach ($data['dias'] as $nDia) {
+            // 1 = lunes => +0 días; 2 = martes => +1 día, etc.
+            $fecha = $lunes->modify('+' . ($nDia - 1) . ' days')->format('Y-m-d');
+
+            $payload = [
+                'cod_empleado'    => $data['cod_empleado'],
+                'fecha'           => $fecha,
+                'hora_entrada'    => $entrada,
+                'hora_salida'     => $salida,
+                'almuerzo_inicio' => $almIni,
+                'almuerzo_fin'    => $almFin,
+                'observacion'     => $observacion,
+                'origen'          => 'manual',
+            ];
+
+            try {
+                $res = Http::timeout(15)->acceptJson()
+                    ->put("{$this->apiAdminBase}/manual", $payload);
+
+                if ($res->successful()) {
+                    $ok++;
+                } else {
+                    Log::warning('manualSemana: fallo API', [
+                        'status'  => $res->status(),
+                        'body'    => $res->body(),
+                        'fecha'   => $fecha,
+                        'payload' => $payload,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('manualSemana exception', [
+                    'msg'     => $e->getMessage(),
+                    'fecha'   => $fecha,
+                    'payload' => $payload,
+                ]);
+            }
+        }
+
+        if ($ok > 0) {
+            return back()->with('mensaje', "Asistencia semanal guardada para {$ok} día(s).");
+        }
+
+        return back()->with('error', 'No se pudo registrar la asistencia semanal.');
+    }
+
+    /**
+     * (Opcional) Actualizar por ID con PATCH si sigues usando edición directa.
+     * Requiere en la API: PATCH {$this->apiAdminBase}/{id}
+     */
+    public function manualUpdate($id, Request $request)
+    {
+        $data = $request->validate([
+            'hora_entrada'    => 'nullable|date_format:H:i',
+            'hora_salida'     => 'nullable|date_format:H:i',
+            'almuerzo_inicio' => 'nullable|date_format:H:i',
+            'almuerzo_fin'    => 'nullable|date_format:H:i',
+            'observacion'     => 'nullable|string|max:200',
+        ], [
+            'hora_entrada.date_format'     => 'La hora de entrada debe ser HH:MM.',
+            'hora_salida.date_format'      => 'La hora de salida debe ser HH:MM.',
+            'almuerzo_inicio.date_format'  => 'La hora de inicio de almuerzo debe ser HH:MM.',
+            'almuerzo_fin.date_format'     => 'La hora de fin de almuerzo debe ser HH:MM.',
+        ]);
+
+        $entrada = $data['hora_entrada']    ?? null;
+        $salida  = $data['hora_salida']     ?? null;
+        $almIni  = $data['almuerzo_inicio'] ?? null;
+        $almFin  = $data['almuerzo_fin']    ?? null;
 
         if ($salida && !$entrada) {
             return back()->with('error', 'Para definir una salida, primero indique la hora de entrada.')->withInput();
@@ -222,6 +336,12 @@ class ControlAsistenciaAdminController extends Controller
 
         if ($entrada && $salida && empty($data['observacion'])) {
             $data['observacion'] = $this->calcularObservacion($entrada, $salida);
+        }
+
+        // Almuerzo por defecto si no viene y hay jornada completa
+        if ($entrada && $salida && !$almIni && !$almFin) {
+            $data['almuerzo_inicio'] = '12:00';
+            $data['almuerzo_fin']    = '13:00';
         }
 
         $payload = array_merge($data, ['origen' => 'manual']);

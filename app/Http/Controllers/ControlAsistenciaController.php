@@ -41,6 +41,7 @@ class ControlAsistenciaController extends Controller
                 }
             }
 
+            // Acción sugerida (Entrada / Salida)
             $accion = (!empty($hoy) && !empty($hoy['hora_entrada']) && empty($hoy['hora_salida']))
                         ? 'Salida'
                         : 'Entrada';
@@ -48,26 +49,22 @@ class ControlAsistenciaController extends Controller
             // === Estadísticas ===
             $estadisticas = Http::get("{$this->apiBase}/{$cod}/estadisticas")->json();
 
-            // === Actividad de HOY para la vista ===
+            // === Actividad de HOY para la vista (incluye almuerzo) ===
             $actividadHoy = $hoy ? [[
-                'fecha'        => Carbon::now($this->tz)->toDateString(),
-                'hora_entrada' => $this->fmt($hoy['hora_entrada'] ?? null),
-                'hora_salida'  => $this->fmt($hoy['hora_salida']  ?? null),
-                'observacion'  => $hoy['observacion'] ?? null,
+                'fecha'           => Carbon::now($this->tz)->toDateString(),
+                'hora_entrada'    => $this->fmt($hoy['hora_entrada'] ?? null),
+                'hora_salida'     => $this->fmt($hoy['hora_salida']  ?? null),
+                'almuerzo_inicio' => $this->fmt($hoy['almuerzo_inicio'] ?? null),
+                'almuerzo_fin'    => $this->fmt($hoy['almuerzo_fin']    ?? null),
+                'observacion'     => $hoy['observacion'] ?? null,
             ]] : [];
 
             // ==========================================================
-            // === Historial paginado (desde array => LengthAwarePaginator)
+            // Historial paginado (desde array => LengthAwarePaginator)
             // ==========================================================
             $perPage = (int) $request->input('per_page', 10);
             $page    = (int) $request->input('page', 1);
 
-            // Si tu API soporta paginación, puedes descomentar y usar:
-            // $apiResp   = Http::get("{$this->apiBase}/{$cod}", ['page'=>$page,'per_page'=>$perPage])->json();
-            // $items     = $apiResp['data'] ?? [];
-            // $total     = $apiResp['total'] ?? count($items);
-
-            // Ahora: paginar localmente el array completo de la API
             $historialArray = Http::get("{$this->apiBase}/{$cod}")->json() ?? [];
             $total          = count($historialArray);
 
@@ -86,7 +83,7 @@ class ControlAsistenciaController extends Controller
                 $page,
                 [
                     'path'  => url()->current(),
-                    'query' => $request->query(), // conserva ?per_page etc.
+                    'query' => $request->query(),
                 ]
             );
 
@@ -113,6 +110,7 @@ class ControlAsistenciaController extends Controller
 
             $hoy = Http::get("{$this->apiBase}/{$cod}/hoy")->json();
 
+            // Maneja solo Entrada / Salida
             if (!$hoy || empty($hoy['hora_entrada'])) {
                 $payload = [
                     'cod_empleado'  => $cod,
@@ -134,22 +132,81 @@ class ControlAsistenciaController extends Controller
                     'observacion'   => $observacion,
                 ];
             } else {
-                return redirect()->route('asistencia.index')->with('mensaje', 'Ya registraste entrada y salida hoy.');
+                return redirect()->route('asistencia.index')
+                    ->with('mensaje_asistencia', 'Ya registraste entrada y salida hoy.');
             }
 
             $response = Http::post($this->apiBase, $payload);
 
             if ($response->successful()) {
-                return redirect()->route('asistencia.index')->with('mensaje', 'Registro guardado correctamente.');
+                return redirect()->route('asistencia.index')
+                    ->with('mensaje_asistencia', 'Registro guardado correctamente.');
             }
 
             $msg = $response->json('error') ?? 'Error al registrar asistencia.';
             return redirect()->route('asistencia.index')->with('error', $msg);
 
         } catch (\Exception $e) {
-            return redirect()->route('asistencia.index')->with('error', 'Error en conexión con la API: ' . $e->getMessage());
+            return redirect()->route('asistencia.index')
+                ->with('error', 'Error en conexión con la API: ' . $e->getMessage());
         }
+    }
 
-        
+    public function registrarAlmuerzo(Request $request)
+    {
+        try {
+            if (!auth()->check() || !auth()->user()->empleado) {
+                return redirect()->route('asistencia.index')
+                    ->with('error', 'Usuario sin empleado asignado.');
+            }
+
+            $cod = auth()->user()->empleado->cod_empleado;
+
+            // Estado de hoy desde la API
+            $hoy = Http::get("{$this->apiBase}/{$cod}/hoy")->json();
+
+            if (!$hoy || empty($hoy['hora_entrada'])) {
+                return redirect()->route('asistencia.index')
+                    ->with('error', 'Primero debes registrar la entrada antes de marcar almuerzo.');
+            }
+
+            $almuerzoInicio = $hoy['almuerzo_inicio'] ?? null;
+            $almuerzoFin    = $hoy['almuerzo_fin'] ?? null;
+
+            // Decidir qué enviar a la API
+            if (!$almuerzoInicio) {
+                // Aún no ha iniciado almuerzo
+                $tipo      = 'AlmuerzoInicio';
+                $mensajeOk = 'Almuerzo iniciado correctamente.';
+            } elseif (!$almuerzoFin) {
+                // Ya tiene inicio pero no fin
+                $tipo      = 'AlmuerzoFin';
+                $mensajeOk = 'Almuerzo finalizado correctamente.';
+            } else {
+                // Ya hay inicio y fin
+                return redirect()->route('asistencia.index')
+                    ->with('mensaje_almuerzo', 'Ya registraste inicio y fin de almuerzo hoy.');
+            }
+
+            $payload = [
+                'cod_empleado'  => $cod,
+                'tipo_registro' => $tipo,
+                'observacion'   => '',
+            ];
+
+            $response = Http::post($this->apiBase, $payload);
+
+            if ($response->successful()) {
+                return redirect()->route('asistencia.index')
+                    ->with('mensaje_almuerzo', $mensajeOk);
+            }
+
+            $msg = $response->json('error') ?? 'Error al registrar almuerzo.';
+            return redirect()->route('asistencia.index')->with('error', $msg);
+
+        } catch (\Exception $e) {
+            return redirect()->route('asistencia.index')
+                ->with('error', 'Error en conexión con la API: ' . $e->getMessage());
+        }
     }
 }

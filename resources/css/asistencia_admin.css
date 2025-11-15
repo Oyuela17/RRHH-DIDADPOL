@@ -16,9 +16,8 @@
 
 .formulario-filtros{
   display:grid;
-  /* nombre | mes | año | vista | semana | Manual | Excel | PDF */
   grid-template-columns:
-    minmax(280px,1fr) 180px 130px 170px 210px 150px 140px 140px;
+    minmax(280px,1fr) 180px 130px 170px 210px 140px 140px;
   gap:12px;
   align-items:center;
 
@@ -27,12 +26,9 @@
   border:1px solid #e7ebf0;
   border-radius:12px;
   box-shadow:0 2px 8px rgba(0,0,0,.04);
-
-  /* Mantener en una sola línea y evitar “saltos” */
-  min-width:1400px;
+  min-width:1200px;
 }
 
-/* Inputs / Selects */
 .formulario-filtros input,
 .formulario-filtros select{
   width:100%;
@@ -55,10 +51,15 @@
   box-shadow:0 0 0 3px rgba(13,110,253,.15);
 }
 
-/* Etiquetas breves (usadas en el modal) */
-.lbl{display:block;font-size:13px;color:#374151;margin:0 0 6px}
+/* Etiquetas */
+.lbl{
+  display:block;
+  font-size:13px;
+  color:#374151;
+  margin:0 0 6px;
+}
 
-/* Buscador con ícono */
+/* Buscador */
 #input-nombre{
   padding-left:40px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='%2390A4AE' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.85-3.85Zm-5.242.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z'/%3E%3C/svg%3E");
@@ -67,7 +68,7 @@
   background-size:18px 18px;
 }
 
-/* Caret de selects */
+/* Select caret */
 .formulario-filtros select{
   -webkit-appearance:none; -moz-appearance:none; appearance:none;
   padding-right:38px;
@@ -77,235 +78,346 @@
   background-size:16px 16px;
 }
 
-/* Semana deshabilitada en Vista: Mes */
 .week-disabled,
 .week-input:disabled{
-  opacity:.6; cursor:not-allowed; background:#f1f3f7;
+  opacity:.6;
+  cursor:not-allowed;
+  background:#f1f3f7;
 }
-
-/* Botones exportar dentro del grid */
-.btn-exportar{
-  height:44px;
-  display:inline-flex; align-items:center; justify-content:center;
-  gap:8px; width:100%;
-  font-size:15px; font-weight:700; color:#fff;
-  border:0; border-radius:10px; text-decoration:none;
-  box-shadow:0 4px 10px rgba(0,0,0,.06);
-  transition:transform .2s, box-shadow .2s, filter .15s ease-in-out;
-}
-.btn-exportar:hover{ transform:translateY(-1px); filter:saturate(1.05); }
-.btn-exportar.pdf{    background:linear-gradient(90deg,#dc3545,#ff6b6b); }
-.btn-exportar.excel{  background:linear-gradient(90deg,#28a745,#7dd56f); }
-/* Nuevo: botón Manual (azul) */
-.btn-exportar.manual{ background:linear-gradient(90deg,#0ea5e9,#60a5fa); }
 
 /* =========================
-   LEYENDA
+   BOTONES EXPORTAR
    ========================= */
-.panel-legend{
-  display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:6px 0 10px;
+.btn-exportar{
+  height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  width:100%;
+  font-size:15px;
+  font-weight:700;
+  color:#fff;
+  border:0;
+  border-radius:10px;
+  text-decoration:none;
+  box-shadow:0 4px 10px rgba(0,0,0,.06);
+  transition:transform .2s, filter .15s ease-in-out;
 }
-.legend-item{
-  display:inline-flex; align-items:center; gap:6px;
-  font-size:13px; color:#324e6b; background:#eef5ff;
-  padding:6px 10px; border-radius:20px; border:1px solid #d9e9ff;
+.btn-exportar:hover{
+  transform:translateY(-2px);
+  filter:brightness(1.1);
 }
-.badge-manual{
-  display:inline-flex; align-items:center; justify-content:center;
-  width:18px; height:18px; font-size:11px; font-weight:800;
-  color:#856404; background:#fff3cd; border:1px solid #ffe4a3; border-radius:50%;
+
+.btn-exportar.excel{
+  background:linear-gradient(90deg,#22c55e,#16a34a);
+}
+.btn-exportar.pdf{
+  background:linear-gradient(90deg,#ef4444,#dc2626);
+}
+.btn-exportar.html{
+  background:linear-gradient(90deg,#3b82f6,#2563eb);
 }
 
 /* =========================
    TABLA / CALENDARIO
    ========================= */
 .tabla-asistencia table{
-  width:100%; min-width:960px;
-  border-collapse:separate; border-spacing:0;
-  background:#fff; border-radius:12px; overflow:hidden;
+  width:100%;
+  min-width:960px;
+  border-collapse:separate;
+  border-spacing:0;
+  background:#fff;
+  border-radius:12px;
+  overflow:hidden;
 }
 .tabla-asistencia thead th{
-  position:sticky; top:0; z-index:2;
-  background:#0d6efd; color:#fff; border:0;
-  padding:10px 6px; font-size:12px; white-space:nowrap;
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:#0d6efd;
+  color:#fff;
+  border:0;
+  padding:10px 6px;
+  font-size:12px;
+  white-space:nowrap;
 }
-.th-sticky{ position:sticky; left:0; z-index:3; background:#fff; }
-
+.th-sticky{
+  position:sticky;
+  left:0;
+  z-index:3;
+  background:#fff;
+}
 .tabla-asistencia th,
 .tabla-asistencia td{
-  border:1px solid #e6e9ee; padding:8px 6px; text-align:center; font-size:13px;
+  border:1px solid #e6e9ee;
+  padding:8px 6px;
+  text-align:center;
+  font-size:13px;
 }
 .nombre-empleado{
-  font-weight:700; color:#003366; text-align:left;
-  padding:8px 10px; min-width:240px;
+  font-weight:700;
+  color:#003366;
+  text-align:left;
+  padding:8px 10px;
+  min-width:240px;
 }
 
-.th-dia .th-dia-wrap{ display:flex; flex-direction:column; align-items:center; gap:2px; }
-.th-dia .num{ font-weight:800; }
-.th-dia .dow{ font-size:11px; opacity:.9; }
+/* Hover en vista semana */
+.clickable-empleado{
+  cursor:pointer;
+  transition:background-color .15s ease, color .15s ease;
+}
+.clickable-empleado:hover{
+  background:#e5f0ff;
+  color:#004c9b;
+}
 
-.tabla-asistencia tbody tr:nth-child(even) td{ background:#fcfdff; }
+.icono-dia i{
+  font-size:14px;
+  cursor:pointer;
+  transition:transform .15s ease;
+}
+.icono-dia i:hover{
+  transform:scale(1.15);
+}
 
-.icono-dia i{ font-size:14px; cursor:pointer; transition:transform .15s ease; }
-.icono-dia i:hover{ transform:scale(1.15); }
-.celda-wrap{ display:inline-flex; align-items:center; gap:6px; }
-.verde{color:#28a745} .rojo{color:#dc3545} .extra{color:#17a2b8} .incompleta{color:#ffc107}
+.verde{color:#22c55e}
+.rojo{color:#ef4444}
+.extra{color:#0ea5e9}
+.incompleta{color:#eab308}
 
 /* =========================
-   MODAL HOVER (tooltip de celda)
+   TOOLTIP
    ========================= */
 .modal-asistencia{
-  position:fixed; background:#fff; border-radius:12px; padding:12px 16px;
-  z-index:9999; width:240px; font-size:13px; box-shadow:0 8px 18px rgba(0,0,0,.15);
-  pointer-events:none; display:none;
+  position:fixed;
+  background:#fff;
+  border-radius:12px;
+  padding:12px 16px;
+  z-index:9999;
+  width:240px;
+  font-size:13px;
+  box-shadow:0 8px 18px rgba(0,0,0,.15);
+  pointer-events:none;
+  display:none;
 }
-.modal-asistencia h4{ font-size:14px; font-weight:800; margin:0 0 6px; color:#004085; text-align:center; }
-.modal-asistencia p{ margin:4px 0; color:#333; }
 
 /* =========================
-   MODAL DE CARGA MANUAL (overlay + caja)
+   OVERLAY
    ========================= */
 #overlay-manual{
-  position:fixed; inset:0; background:rgba(0,0,0,.38);
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.38);
   backdrop-filter:saturate(120%) blur(1px);
-  z-index:9998; display:none;
+  z-index:9998;
+  display:none;
 }
-#modal-manual{
-  display:none; position:fixed; z-index:9999;
-  left:50%; top:50%; transform:translate(-50%,-50%);
-  width:min(900px,96vw);
-  background:#ffffff; border:1px solid #e7ebf0; border-radius:14px;
+
+/* =========================
+   MODALES
+   ========================= */
+.modal-asistencia-card{
+  display:none;
+  position:fixed;
+  z-index:9999;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  width:min(780px,96vw);
+  background:#ffffff;
+  border-radius:20px;
   box-shadow:0 22px 45px rgba(0,0,0,.22);
+  border:1px solid #e3e7ef;
   animation:modalPop .18s ease-out;
 }
 @keyframes modalPop{
-  from{ transform:translate(-50%,-46%) scale(.98); opacity:.0; }
-  to  { transform:translate(-50%,-50%) scale(1);   opacity:1; }
+  from{ transform:translate(-50%,-46%) scale(.97); opacity:.0; }
+  to{ transform:translate(-50%,-50%) scale(1); opacity:1; }
 }
 
-/* Header del modal */
-#modal-manual > div:first-child{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:14px 18px; border-bottom:1px solid #eef2f7;
-  border-top-left-radius:14px; border-top-right-radius:14px;
-  background:linear-gradient(180deg,#f9fbff,#f2f6fd);
+.modal-header-asistencia{
+  padding:20px 24px 12px;
+  text-align:center;
 }
-#modal-manual h4{ margin:0; color:#003366; font-weight:800; }
-
-/* Botón cerrar en header */
-#close-manual{
-  height:34px; padding:0 12px; background:#94a3b8 !important;
+.modal-title-main{
+  margin:0;
+  font-size:20px;
+  font-weight:700;
+  color:#003366;
 }
-#close-manual:hover{ filter:saturate(1.05); }
-
-/* Cuerpo del modal */
-#modal-manual form{ padding:16px; }
-#modal-manual input[type="date"],
-#modal-manual input[type="time"],
-#modal-manual input[type="text"],
-#modal-manual select{
-  width:100%; height:42px; font-size:14px;
-  border:1px solid #d6d9de; border-radius:10px; padding:0 12px;
-  outline:none; transition:border-color .2s, box-shadow .2s, background-color .2s;
-  box-shadow:0 1px 0 rgba(0,0,0,.02) inset; background:#fff;
-}
-#modal-manual input[type="date"]:focus,
-#modal-manual input[type="time"]:focus,
-#modal-manual input[type="text"]:focus,
-#modal-manual select:focus{
-  border-color:#8bb9ff; box-shadow:0 0 0 3px rgba(13,110,253,.15);
-  background:#fbfcff;
-}
-
-/* Campo Observación en solo lectura */
-#modal-manual input[readonly]{
-  background:#f8fafc; cursor:not-allowed; color:#34495e;
-}
-
-/* Botones “Ahora” dentro del modal (usan .btn-exportar con override) */
-#modal-manual .btn-exportar{
-  height:42px; padding:0 14px; white-space:nowrap;
-}
-#modal-manual .btn-exportar:hover{ transform:translateY(-1px); }
-
-/* Pastilla que muestra la observación calculada */
-#pill-observacion{
-  margin-left:auto;
-  display:none;
+.modal-header-underline{
+  width:90%;
+  max-width:420px;
+  height:3px;
+  margin:10px auto 0;
+  background:#f39c12;
   border-radius:999px;
-  padding:6px 10px;
+}
+
+.modal-body-wrapper{
+  padding:20px 24px 22px;
+}
+
+/* Grid inputs */
+.grid-two-cols{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  align-items:flex-end;
 }
 
 /* =========================
-   RESPONSIVE (filtros y tabla)
+   BOTÓN "AHORA" — PEQUEÑO
    ========================= */
-@media (max-width: 1280px){
-  /* permite scroll horizontal solo en filtros si hiciera falta */
-  .filtros-asistencia{ overflow-x:auto; }
-}
-
-@media (max-width: 992px){
-  .tabla-asistencia th, .tabla-asistencia td{ font-size:12px; }
-  .nombre-empleado{ min-width:200px; }
-}
-
-@media (max-width: 768px){
-  .formulario-filtros{
-    grid-template-columns: 1fr 1fr;  /* 2 columnas */
-    min-width: 0;                     /* ahora puede romperse a 2 col */
-  }
-  #input-nombre{ grid-column:1 / -1; }
-  .btn-exportar.manual,
-  .btn-exportar.pdf,
-  .btn-exportar.excel{ width:100%; }
-}
-
-@media (max-width: 560px){
-  .formulario-filtros{ grid-template-columns: 1fr; }
-  .btn-exportar.manual,
-  .btn-exportar.pdf,
-  .btn-exportar.excel{ width:100%; }
-}
-
-/* Pill de observación centrado */
-.pill-obs{
-  display:inline-flex !important;
-  margin: 8px auto 0;           /* centra horizontal */
-  text-align:center;
-  justify-content:center;
+.field-with-button{
+  display:flex;
   align-items:center;
-  padding:8px 12px;
-  border-radius:999px;
-  background:#eef5ff;
-  border:1px solid #d9e9ff;
-  min-width: 180px;             /* luce mejor cuando el texto es corto */
+  justify-content:center;
+  gap:10px;
 }
 
-/* Contenedor de botones centrado */
+.btn-ahora{
+  height:34px;
+  padding:0 14px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  background:#0ea5e9;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  box-shadow:0 3px 8px rgba(14,165,233,0.25);
+  transition:transform .15s ease, filter .15s ease;
+}
+.btn-ahora:hover{
+  transform:translateY(-2px);
+  filter:brightness(1.1);
+}
+
+.field-with-button input[type="time"]{
+  flex:1;
+  height:42px;
+  border:1px solid #d6d9de;
+  border-radius:10px;
+  padding:0 12px;
+}
+
+/* =========================
+   BOTONES MODAL
+   ========================= */
 .modal-actions{
   display:flex;
-  gap:12px;
+  justify-content:center;
+  gap:16px;
+  margin-top:25px;
+}
+
+.btn-modal-primary,
+.btn-modal-danger{
+  display:inline-flex;
   align-items:center;
-  justify-content:center;       /* centra botones */
+  justify-content:center;
+  gap:6px;
+  padding:0 26px;
+  height:44px;
+  border-radius:10px;
+  border:none;
+  font-size:15px;
+  font-weight:600;
+  color:#fff;
+  cursor:pointer;
+  box-shadow:0 4px 10px rgba(0,0,0,.08);
+  transition:transform .15s ease;
+}
+
+.btn-modal-primary{
+  background:linear-gradient(90deg,#3b82f6,#2563eb);
+}
+.btn-modal-danger{
+  background:linear-gradient(90deg,#ef4444,#dc2626);
+}
+.btn-modal-primary:hover,
+.btn-modal-danger:hover{
+  transform:translateY(-2px);
+}
+
+/* =========================
+   DÍAS DE LA SEMANA (HTML/Excel/PDF style)
+   ========================= */
+.dias-semana-checkboxes{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:12px;
+  margin-top:12px;
+}
+.chk-dia input{
+  position:absolute;
+  opacity:0;
+}
+.chk-dia span{
+  min-width:90px;
+  height:42px;
+  padding:0 18px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:#e5e7eb;
+  color:#374151;
+  border-radius:10px;
+  font-weight:600;
+  cursor:pointer;
+  transition:.2s;
+}
+.chk-dia:hover span{
+  transform:translateY(-2px);
+  filter:brightness(1.05);
+}
+.chk-dia input:checked + span{
+  background:linear-gradient(90deg,#3b82f6,#2563eb);
+  color:white;
+  box-shadow:0 4px 12px rgba(37,99,235,0.35);
+  transform:translateY(-2px);
+}
+
+/* Pastilla de observación (Asistencia normal / Horas extra / etc.) */
+.pill-observacion-wrapper{
+  display:flex;
+  justify-content:center;
   margin-top:14px;
 }
 
-/* Botones un poco más pequeños */
-.btn-exportar.btn-sm{
-  height:38px;                  /* antes 42–44px */
-  padding:0 14px;
-  font-size:14px;
-  width:auto;                   /* no ocupar todo el ancho */
-  min-width: 160px;             /* tamaño agradable */
-  border-radius:12px;
+.pill-obs{
+  display:inline-flex !important;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:8px 18px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#e0f9ec,#c4f1dd);
+  border:1px solid #9ae6b4;
+  font-size:13px;
+  font-weight:600;
+  color:#166534;          /* verde oscuro para el texto */
+  box-shadow:0 4px 10px rgba(16,185,129,0.18);
 }
 
-/* Color propio del botón Cerrar */
-.btn-cerrar{
-  background: linear-gradient(90deg,#64748b,#94a3b8) !important; /* gris azulado */
-  color:#fff !important;
+/* Icono dentro de la pastilla */
+.pill-obs i{
+  font-size:14px;
 }
-.btn-cerrar:hover{
-  filter: saturate(1.08);
-  transform: translateY(-1px);
+
+
+/* =========================
+   RESPONSIVE
+   ========================= */
+@media(max-width:768px){
+  .grid-two-cols{ grid-template-columns:1fr; }
+  .formulario-filtros{ grid-template-columns:1fr 1fr; }
 }

@@ -18,7 +18,7 @@
     <h2>CONTROL DE ASISTENCIA DEL PERSONAL</h2>
   </div>
 
-  {{-- ===== FILTROS (con Manual + Excel + PDF en la misma línea) ===== --}}
+  {{-- ===== FILTROS (Excel + PDF en la misma línea; sin botón manual) ===== --}}
   <div class="filtros-asistencia">
     <form method="GET"
           action="{{ route('control_asistencia.admin') }}"
@@ -56,7 +56,7 @@
         <option value="semana" {{ $vista==='semana' ? 'selected' : '' }}>Vista: Semana</option>
       </select>
 
-      {{-- 5) Semana ISO (siempre visible; deshabilitado en "Mes") --}}
+      {{-- 5) Semana ISO (deshabilitado en "Mes") --}}
       <input type="week"
              id="semana"
              name="semana"
@@ -66,11 +66,7 @@
              {{ $vista==='mes' ? 'disabled' : '' }}
              title="{{ $vista==='mes' ? 'Disponible en Vista: Semana' : 'Seleccione una semana' }}">
 
-      {{-- 6) Botones: Manual + Excel + PDF --}}
-      <a id="btnAsistenciaManual" class="btn-exportar manual" href="javascript:void(0)">
-        <i class="fas fa-user-check"></i> Asistencia manual
-      </a>
-
+      {{-- 6) Botones: Excel + PDF --}}
       <a id="btnExportarExcel" class="btn-exportar excel" target="_blank" rel="noopener">
         <i class="fas fa-file-excel"></i> Excel
       </a>
@@ -103,14 +99,24 @@
 
       <tbody id="tabla-empleados">
         @foreach ($empleados as $emp)
-          <tr class="fila-empleado">
-            <td class="nombre-empleado th-sticky">{{ $emp['nombre'] }}</td>
+          <tr class="fila-empleado" data-cod-empleado="{{ $emp['cod_empleado'] ?? '' }}">
+            {{-- Nombre: clickeable solo en Vista Semana --}}
+            <td class="nombre-empleado th-sticky {{ $vista === 'semana' ? 'clickable-empleado' : '' }}"
+                @if($vista === 'semana')
+                  style="cursor:pointer;"
+                  title="Registrar asistencia semanal"
+                @endif>
+              {{ $emp['nombre'] }}
+            </td>
 
             @for ($d = 1; $d <= $diasMes; $d++)
               @php
-                $fechaActual = Carbon::create($anioActual, $mesActual, $d)->toDateString();
-                $registro = collect($emp['registros'])->firstWhere('fecha', $fechaActual);
-                $clase = 'rojo'; $isManual = false;
+                $fechaActual   = Carbon::create($anioActual, $mesActual, $d)->toDateString();
+                $registro      = collect($emp['registros'])->firstWhere('fecha', $fechaActual);
+                $clase         = 'rojo';
+                $isManual      = false;
+                $almInicioRaw  = $registro['almuerzo_inicio'] ?? null;
+                $almFinRaw     = $registro['almuerzo_fin'] ?? null;
 
                 if ($registro) {
                   switch(strtoupper($registro['observacion'] ?? 'ASISTENCIA')) {
@@ -122,11 +128,26 @@
                 }
               @endphp
 
-              <td class="icono-dia" data-dia="{{ $d }}" data-date="{{ $fechaActual }}">
+              <td class="icono-dia"
+                  data-dia="{{ $d }}"
+                  data-date="{{ $fechaActual }}"
+                  data-cod-empleado="{{ $emp['cod_empleado'] ?? '' }}"
+                  data-nombre="{{ $emp['nombre'] }}"
+                  data-hora-entrada="{{ $registro['hora_entrada'] ?? '' }}"
+                  data-hora-salida="{{ $registro['hora_salida'] ?? '' }}"
+                  data-almuerzo-inicio="{{ $almInicioRaw ?? '' }}"
+                  data-almuerzo-fin="{{ $almFinRaw ?? '' }}">
                 @if ($registro)
                   <div class="celda-wrap">
                     <i class="fas fa-check-circle {{ $clase }}"
-                       onmouseenter="mostrarModal(event, '{{ $emp['nombre'] }}','{{ $fechaActual }}','{{ $registro['hora_entrada'] }}','{{ $registro['hora_salida'] }}','{{ $registro['observacion'] ?? 'Asistencia' }}','{{ $registro['origen'] ?? 'biometrico' }}')"
+                       onmouseenter="mostrarModal(event,
+                         '{{ $emp['nombre'] }}',
+                         '{{ $fechaActual }}',
+                         '{{ $registro['hora_entrada'] ?? '' }}',
+                         '{{ $registro['hora_salida'] ?? '' }}',
+                         '{{ $almInicioRaw ?? '' }}',
+                         '{{ $almFinRaw ?? '' }}',
+                         '{{ $registro['observacion'] ?? 'Asistencia' }}')"
                        onmouseleave="ocultarModal()"></i>
                     @if($isManual)
                       <span class="badge-manual" title="Registro manual">M</span>
@@ -134,7 +155,14 @@
                   </div>
                 @else
                   <i class="fas fa-times-circle rojo"
-                     onmouseenter="mostrarModal(event, '{{ $emp['nombre'] }}','{{ $fechaActual }}','','','Sin asistencia','')"
+                     onmouseenter="mostrarModal(event,
+                       '{{ $emp['nombre'] }}',
+                       '{{ $fechaActual }}',
+                       '',
+                       '',
+                       '',
+                       '',
+                       'Sin asistencia')"
                      onmouseleave="ocultarModal()"></i>
                 @endif
               </td>
@@ -145,89 +173,163 @@
     </table>
   </div>
 
-  {{-- Modal hover info --}}
+  {{-- Tooltip hover info --}}
   <div id="modal-asistencia" class="modal-asistencia" style="display:none;">
     <h4 id="modal-nombre"></h4>
     <p><strong>Fecha:</strong> <span id="modal-fecha"></span></p>
     <p><strong>Hora Entrada:</strong> <span id="modal-entrada"></span></p>
     <p><strong>Hora Salida:</strong> <span id="modal-salida"></span></p>
+    <p><strong>Almuerzo inicio:</strong> <span id="modal-alm-inicio"></span></p>
+    <p><strong>Almuerzo fin:</strong> <span id="modal-alm-fin"></span></p>
     <p><strong>Observación:</strong> <span id="modal-observacion"></span></p>
-    <p><strong>Origen:</strong> <span id="modal-origen"></span></p>
   </div>
 </div>
 
-{{-- ========= MODAL DE CARGA MANUAL (UPSERT con PUT) ========= --}}
+{{-- ===== OVERLAY COMPARTIDO PARA LOS DOS MODALES ===== --}}
 <div id="overlay-manual" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;"></div>
-<div id="modal-manual" style="display:none;position:fixed;z-index:9999;left:50%;top:50%;transform:translate(-50%,-50%);
-  width:min(900px,96vw);background:#fff;border:1px solid #e7ebf0;border-radius:14px;box-shadow:0 18px 40px rgba(0,0,0,.2);">
 
-  {{-- Header con TÍTULO CENTRADO (sin botón aquí) --}}
-  <div style="display:flex;align-items:center;justify-content:center;padding:14px 18px;border-bottom:1px solid #eef2f7">
-    <h4 style="margin:0;color:#003366;font-weight:800;text-align:center;">Registrar/ajustar asistencia manual</h4>
+{{-- ========= MODAL DE CARGA MANUAL (UN DÍA) ========= --}}
+<div id="modal-manual" class="modal-asistencia-card" style="display:none;">
+  <div class="modal-inner">
+    {{-- Header estilo “Registrar Horario” --}}
+    <div class="modal-header-asistencia">
+      <h4 id="modal-manual-title" class="modal-title-main">
+        Registrar/ajustar asistencia manual
+      </h4>
+      <div class="modal-header-underline"></div>
+    </div>
+
+    <form method="POST"
+          action="{{ route('control_asistencia.admin.manual.upsert') }}"
+          id="form-manual"
+          autocomplete="off"
+          class="modal-body-wrapper">
+      @csrf
+      @method('PUT')
+
+      {{-- Empleado y fecha ocultos (se rellenan desde la celda clickeada) --}}
+      <input type="hidden" name="cod_empleado" id="cod_empleado">
+      <input type="hidden" name="fecha" id="fecha">
+
+      {{-- FILA: Entrada + Salida --}}
+      <div class="grid-two-cols">
+        <div>
+          <label class="lbl">Entrada</label>
+          <div class="field-with-button">
+            <input type="time" name="hora_entrada" id="hora_entrada" step="60">
+            <button type="button" class="btn-ahora" onclick="setAhora('hora_entrada')">
+                  <i class="far fa-clock"></i> Ahora
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="lbl">Salida</label>
+          <div class="field-with-button">
+            <input type="time" name="hora_salida" id="hora_salida" step="60">
+            <button type="button" class="btn-ahora" onclick="setAhora('hora_salida')">
+                  <i class="far fa-clock"></i> Ahora
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {{-- Observación (oculta, la calculamos automático) --}}
+      <input type="hidden" name="observacion" id="observacion">
+      <div class="pill-observacion-wrapper">
+        <span id="pill-observacion" class="legend-item pill-obs" style="display:none;"></span>
+      </div>
+
+      {{-- FOOTER --}}
+      <div class="modal-actions">
+        <button type="submit" class="btn-modal-primary">
+          <i class="fas fa-save"></i> Guardar
+        </button>
+        <button type="button" id="close-manual" class="btn-modal-danger">
+          <i class="fas fa-times"></i> Cerrar
+        </button>
+      </div>
+    </form>
   </div>
+</div>
 
-  <form method="POST" action="{{ route('control_asistencia.admin.manual.upsert') }}" id="form-manual" autocomplete="off" style="padding:16px;">
-    @csrf
-    @method('PUT')
+{{-- ========= MODAL ASISTENCIA SEMANAL (VISTA: SEMANA) ========= --}}
+<div id="modal-semana" class="modal-asistencia-card" style="display:none;">
+  <div class="modal-inner">
+    <div class="modal-header-asistencia">
+      <h4 id="modal-semana-title" class="modal-title-main">
+        Asistencia semanal
+      </h4>
+      <div class="modal-header-underline"></div>
+    </div>
 
-    {{-- FILA 1: Empleado + Fecha (MISMA LÍNEA) --}}
-    <div style="display:grid;grid-template-columns:1.4fr 0.8fr;gap:12px;align-items:end;">
-      <div>
-        <label class="lbl">Empleado</label>
-        <select name="cod_empleado" id="cod_empleado" required>
-          <option value="">— Seleccione —</option>
-          @foreach($empleados as $emp)
-            @isset($emp['cod_empleado'])
-              <option value="{{ $emp['cod_empleado'] }}">{{ $emp['nombre'] }}</option>
-            @endisset
+    <form method="POST"
+          action="{{ route('control_asistencia.admin.manual.semana') }}"
+          id="form-semana"
+          autocomplete="off"
+          class="modal-body-wrapper">
+      @csrf
+
+      <input type="hidden" name="cod_empleado" id="semana_cod_empleado">
+      <input type="hidden" name="semana_iso"   id="semana_iso">
+
+      {{-- Horario de la semana --}}
+      <div class="grid-two-cols">
+        <div>
+          <label class="lbl">Entrada (toda la semana)</label>
+          <div class="field-with-button">
+            <input type="time" name="hora_entrada" id="semana_hora_entrada" step="60">
+            <button type="button" class="btn-ahora" onclick="setAhoraSemana('semana_hora_entrada')">
+                 <i class="far fa-clock"></i> Ahora
+            </button>
+
+          </div>
+        </div>
+        <div>
+          <label class="lbl">Salida (toda la semana)</label>
+          <div class="field-with-button">
+            <input type="time" name="hora_salida" id="semana_hora_salida" step="60">
+            <button type="button" class="btn-ahora" onclick="setAhoraSemana('semana_hora_salida')">
+                  <i class="far fa-clock"></i> Ahora
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {{-- Días a aplicar --}}
+      <div class="dias-semana-wrapper">
+        <label class="lbl">Aplicar a los días:</label>
+        <div class="dias-semana-checkboxes">
+          @php
+            $diasSemana = [
+              1 => 'Lunes',
+              2 => 'Martes',
+              3 => 'Miércoles',
+              4 => 'Jueves',
+              5 => 'Viernes',
+              6 => 'Sábado',
+              7 => 'Domingo',
+            ];
+          @endphp
+          @foreach($diasSemana as $num => $label)
+            <label class="chk-dia">
+              <input type="checkbox" name="dias[]" value="{{ $num }}" {{ $num <= 5 ? 'checked' : '' }}>
+              <span>{{ $label }}</span>
+            </label>
           @endforeach
-        </select>
-      </div>
-      <div>
-        <label class="lbl">Fecha</label>
-        <input type="date" name="fecha" id="fecha" required>
-      </div>
-    </div>
-
-    {{-- FILA 2: Entrada + Salida (ABAJO) --}}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin-top:12px;">
-      <div>
-        <label class="lbl">Entrada</label>
-        <div style="display:flex;gap:6px;">
-          <input type="time" name="hora_entrada" id="hora_entrada" step="60">
-          <button type="button" class="btn-exportar manual" style="height:42px;" onclick="setAhora('hora_entrada')">
-            <i class="far fa-clock"></i> Ahora
-          </button>
         </div>
       </div>
-      <div>
-        <label class="lbl">Salida</label>
-        <div style="display:flex;gap:6px;">
-          <input type="time" name="hora_salida" id="hora_salida" step="60">
-          <button type="button" class="btn-exportar manual" style="height:42px;" onclick="setAhora('hora_salida')">
-            <i class="far fa-clock"></i> Ahora
-          </button>
-        </div>
+
+      {{-- FOOTER --}}
+      <div class="modal-actions">
+        <button type="submit" class="btn-modal-primary">
+          <i class="fas fa-save"></i> Guardar semana
+        </button>
+        <button type="button" id="close-semana" class="btn-modal-danger">
+          <i class="fas fa-times"></i> Cerrar
+        </button>
       </div>
-    </div>
-
-    {{-- Observación: OCULTA (se muestra como pill cuando haya entrada y salida) --}}
-    <input type="hidden" name="observacion" id="observacion">
-    <div style="margin-top:10px; text-align:center;">
-      <span id="pill-observacion" class="legend-item pill-obs" style="display:none; margin: 0 auto;"></span>
-    </div>
-
-    {{-- FOOTER: Botones pequeños y centrados --}}
-    <div class="modal-actions" style="display:flex;gap:12px;align-items:center;justify-content:center;margin-top:16px;">
-      <button type="submit" class="btn-exportar excel btn-sm" style="height:38px;padding:0 14px;min-width:160px;">
-        <i class="fas fa-save"></i> Guardar
-      </button>
-      <button type="button" id="close-manual" class="btn-exportar btn-sm btn-cerrar"
-              style="height:38px;padding:0 14px;min-width:160px;background:linear-gradient(90deg,#64748b,#94a3b8);">
-        <i class="fas fa-times"></i> Cerrar
-      </button>
-    </div>
-  </form>
+    </form>
+  </div>
 </div>
 
 {{-- ================= SCRIPTS ================= --}}
@@ -246,8 +348,12 @@
   }
 
   /* ---------- Auto-refresh Mes/Año ---------- */
-  const selectMes  = document.getElementById('mes');
-  const selectAnio = document.getElementById('anio');
+const selectMes   = document.getElementById('mes');
+const selectAnio  = document.getElementById('anio');
+const filtroForm  = document.getElementById('filtro-form');
+const vistaSel    = document.getElementById('vista');
+const inpSemana   = document.getElementById('semana');
+
   [selectMes, selectAnio].forEach(s => {
     s && s.addEventListener('change', () => {
       const params = new URLSearchParams(window.location.search);
@@ -257,27 +363,36 @@
     });
   });
 
-  /* ---------- Vista Mes/Semana ---------- */
-  const vistaSel  = document.getElementById('vista');
-  const inpSemana = document.getElementById('semana');
+ /* ---------- Vista Mes/Semana ---------- */
+function toggleSemanaInput() {
+  const isSemana = vistaSel.value === 'semana';
+  inpSemana.disabled = !isSemana;
+  inpSemana.title = isSemana ? 'Seleccione una semana' : 'Disponible en Vista: Semana';
+  inpSemana.classList.toggle('week-disabled', !isSemana);
+}
 
-  function toggleSemanaInput() {
-    const isSemana = vistaSel.value === 'semana';
-    inpSemana.disabled = !isSemana;
-    inpSemana.title = isSemana ? 'Seleccione una semana' : 'Disponible en Vista: Semana';
-    inpSemana.classList.toggle('week-disabled', !isSemana);
+/* Cuando cambie la vista, recargo con los parámetros correctos */
+vistaSel && vistaSel.addEventListener('change', () => {
+  const params = new URLSearchParams(window.location.search);
 
-    if (isSemana) {
-      if (!inpSemana.value) {
-        const now = new Date();
-        inpSemana.value = getISOWeekString(now);
-      }
-      filtrarPorSemana(inpSemana.value);
-    } else {
-      mostrarMesCompleto();
+  if (selectMes)   params.set('mes',   selectMes.value);
+  if (selectAnio)  params.set('anio',  selectAnio.value);
+  if (vistaSel)    params.set('vista', vistaSel.value);
+
+  if (vistaSel.value === 'semana') {
+    // si no hay semana seleccionada, pongo la actual
+    if (!inpSemana.value) {
+      const now = new Date();
+      inpSemana.value = getISOWeekString(now);
     }
-    actualizarExportLinks();
+    params.set('semana', inpSemana.value);
+  } else {
+    params.delete('semana');
   }
+
+  window.location.search = params.toString();
+});
+
   vistaSel && vistaSel.addEventListener('change', toggleSemanaInput);
   inpSemana && inpSemana.addEventListener('change', () => filtrarPorSemana(inpSemana.value));
 
@@ -327,22 +442,28 @@
     ocultarFueraDeRango(desde, hasta);
   }
 
-  /* ---------- Modal hover (info) ---------- */
+  /* ---------- Tooltip hover ---------- */
   function formatearHora(hora) {
     if (!hora) return '-';
-    const [h, m, s] = hora.split(':');
-    const date = new Date(); date.setHours(h, m, s || 0);
+    const partes = hora.split(':');
+    if (partes.length < 2) return hora;
+    const [h, m] = partes;
+    const date = new Date();
+    date.setHours(parseInt(h,10), parseInt(m,10), 0);
     return date.toLocaleTimeString('es-HN', { hour: 'numeric', minute: '2-digit', hour12: true });
   }
-  window.mostrarModal = function (event, nombre, fecha, entrada, salida, observacion, origen) {
+  window.mostrarModal = function (event, nombre, fecha, entrada, salida, almInicio, almFin, observacion) {
     const modal = document.getElementById('modal-asistencia');
     const windowWidth = window.innerWidth;
-    document.getElementById('modal-nombre').textContent = nombre;
-    document.getElementById('modal-fecha').textContent = fecha;
-    document.getElementById('modal-entrada').textContent = formatearHora(entrada);
-    document.getElementById('modal-salida').textContent = formatearHora(salida);
-    document.getElementById('modal-observacion').textContent = observacion || '-';
-    document.getElementById('modal-origen').textContent = (origen || '—').toUpperCase();
+
+    document.getElementById('modal-nombre').textContent       = nombre;
+    document.getElementById('modal-fecha').textContent        = fecha;
+    document.getElementById('modal-entrada').textContent      = formatearHora(entrada);
+    document.getElementById('modal-salida').textContent       = formatearHora(salida);
+    document.getElementById('modal-alm-inicio').textContent   = formatearHora(almInicio);
+    document.getElementById('modal-alm-fin').textContent      = formatearHora(almFin);
+    document.getElementById('modal-observacion').textContent  = observacion || '-';
+
     const modalWidth = 260;
     const leftPos = (windowWidth - event.clientX < modalWidth + 20)
       ? event.clientX - modalWidth - 10
@@ -372,7 +493,7 @@
     }
 
     btnPDF.href   = "{{ route('control_asistencia.export.pdf') }}" + '?' + params.toString();
-    btnExcel.href = "{{ route('asistencia.export.excel') }}" + '?' + params.toString(); // queda igual
+    btnExcel.href = "{{ route('asistencia.export.excel') }}" + '?' + params.toString();
   }
   ['input-nombre','mes','anio','vista','semana'].forEach(id=>{
     const el = document.getElementById(id);
@@ -380,44 +501,135 @@
     el && el.addEventListener('change', actualizarExportLinks);
   });
 
-  /* ---------- Init ---------- */
-  document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('vista')) {
-      toggleSemanaInput();
-      actualizarExportLinks();
-    }
+  /* ---------- Overlays / cerrar ---------- */
+  const overlayMan  = document.getElementById('overlay-manual');
+  const modalManual = document.getElementById('modal-manual');
+  const modalSemana = document.getElementById('modal-semana');
+  const closeManual = document.getElementById('close-manual');
+  const closeSemana = document.getElementById('close-semana');
+  const titleManual = document.getElementById('modal-manual-title');
+  const titleSemana = document.getElementById('modal-semana-title');
+
+  function showOverlay()   { overlayMan.style.display='block'; }
+  function hideOverlay()   { overlayMan.style.display='none'; }
+  function showManual()    { modalSemana.style.display='none'; modalManual.style.display='block'; showOverlay(); }
+  function showSemana()    { modalManual.style.display='none'; modalSemana.style.display='block'; showOverlay(); }
+  function hideModals()    { modalManual.style.display='none'; modalSemana.style.display='none'; hideOverlay(); }
+
+  closeManual && closeManual.addEventListener('click', hideModals);
+  closeSemana && closeSemana.addEventListener('click', hideModals);
+  overlayMan  && overlayMan.addEventListener('click', hideModals);
+
+  /* ---------- Modal de DÍA: click en celdas ---------- */
+  const celdasDias     = document.querySelectorAll('.icono-dia');
+  const hiddenEmpleado = document.getElementById('cod_empleado');
+  const hiddenFecha    = document.getElementById('fecha');
+  const entradaEl      = document.getElementById('hora_entrada');
+  const salidaEl       = document.getElementById('hora_salida');
+
+  function backendHoraToInput(hora) {
+    if (!hora) return '';
+    return hora.substring(0,5); // "HH:MM"
+  }
+
+  celdasDias.forEach(td => {
+    td.addEventListener('click', () => {
+      const cod    = td.dataset.codEmpleado || '';
+      const fecha  = td.dataset.date || '';
+      const nombre = td.dataset.nombre || '';
+      const hEnt   = td.dataset.horaEntrada || '';
+      const hSal   = td.dataset.horaSalida || '';
+
+      if (hiddenEmpleado && cod) hiddenEmpleado.value = cod;
+      if (hiddenFecha && fecha)  hiddenFecha.value = fecha;
+
+      if (entradaEl) entradaEl.value = backendHoraToInput(hEnt);
+      if (salidaEl)  salidaEl.value  = backendHoraToInput(hSal);
+
+      if (titleManual) {
+        let fechaBonita = fecha;
+        if (fecha && fecha.includes('-')) {
+          const [y,m,d] = fecha.split('-');
+          fechaBonita = `${d}/${m}/${y}`;
+        }
+        titleManual.textContent = `Registrar/ajustar asistencia – ${nombre} (${fechaBonita})`;
+      }
+
+      calcularObservacion();
+      showManual();
+    });
   });
 
-  /* ---------- Modal Manual: abrir/cerrar ---------- */
-  const openManual  = document.getElementById('btnAsistenciaManual');
-  const closeManual = document.getElementById('close-manual');
-  const modalManual = document.getElementById('modal-manual');
-  const overlayMan  = document.getElementById('overlay-manual');
-  function showManual(){ modalManual.style.display='block'; overlayMan.style.display='block'; }
-  function hideManual(){ modalManual.style.display='none'; overlayMan.style.display='none'; }
-  openManual && openManual.addEventListener('click', showManual);
-  closeManual && closeManual.addEventListener('click', hideManual);
-  overlayMan  && overlayMan.addEventListener('click', hideManual);
+  /* ---------- Modal de SEMANA: click en nombre (solo Vista: Semana) ---------- */
+  const filasEmpleados = document.querySelectorAll('.fila-empleado');
+  const semanaCodEmp   = document.getElementById('semana_cod_empleado');
+  const semanaIsoInp   = document.getElementById('semana_iso');
+  const semanaEntEl    = document.getElementById('semana_hora_entrada');
+  const semanaSalEl    = document.getElementById('semana_hora_salida');
 
-  /* ---------- Aux: setAhora ---------- */
+  filasEmpleados.forEach(fila => {
+    const nombreTd = fila.querySelector('.nombre-empleado');
+    if (!nombreTd) return;
+
+    nombreTd.addEventListener('click', () => {
+      if (!vistaSel || vistaSel.value !== 'semana') {
+        return; // solo en Vista: Semana
+      }
+
+      const cod   = fila.dataset.codEmpleado || '';
+      const nombre= nombreTd.textContent.trim();
+      const iso   = inpSemana ? inpSemana.value : '';
+
+      if (!cod || !iso) return;
+
+      if (semanaCodEmp) semanaCodEmp.value = cod;
+      if (semanaIsoInp) semanaIsoInp.value = iso;
+
+      if (semanaEntEl) semanaEntEl.value = '';
+      if (semanaSalEl) semanaSalEl.value = '';
+
+      if (titleSemana) {
+        titleSemana.textContent = `Asistencia semanal – ${nombre} (${iso})`;
+      }
+
+      showSemana();
+    });
+  });
+
+  /* ---------- Aux: setAhora (día / semana) ---------- */
   function setAhora(idCampo){
     const d = new Date();
     const hh = String(d.getHours()).padStart(2,'0');
     const mm = String(d.getMinutes()).padStart(2,'0');
-    document.getElementById(idCampo).value = `${hh}:${mm}`;
-    calcularObservacion(); // recalcular al usar "Ahora"
+    const el = document.getElementById(idCampo);
+    if (el) {
+      el.value = `${hh}:${mm}`;
+      if (idCampo === 'hora_entrada' || idCampo === 'hora_salida') {
+        calcularObservacion();
+      }
+    }
   }
+  window.setAhora = setAhora;
 
-  /* ---------- Observación automática + validación ---------- */
+  function setAhoraSemana(idCampo){
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    const el = document.getElementById(idCampo);
+    if (el) el.value = `${hh}:${mm}`;
+  }
+  window.setAhoraSemana = setAhoraSemana;
+
+  /* ---------- Observación automática + validación (DÍA) ---------- */
   const formManual = document.getElementById('form-manual');
-  const entradaEl  = document.getElementById('hora_entrada');
-  const salidaEl   = document.getElementById('hora_salida');
   const obsEl      = document.getElementById('observacion');
   const pillObs    = document.getElementById('pill-observacion');
 
   [entradaEl, salidaEl].forEach(el => el && el.addEventListener('input', calcularObservacion));
 
   function calcularObservacion(){
+    if (!entradaEl || !salidaEl || !obsEl || !pillObs) return;
+
     const ent = entradaEl.value, sal = salidaEl.value;
     pillObs.style.display = 'none';
 
@@ -437,7 +649,6 @@
 
     obsEl.value = obs;
 
-    // pill visual centrado
     pillObs.className = 'legend-item pill-obs';
     pillObs.innerHTML = `<i class="fas fa-check-circle ${clase}"></i> ${obs}`;
     pillObs.style.display = 'inline-flex';
@@ -457,7 +668,24 @@
       Swal.fire('Atención','La hora de salida no puede ser menor que la hora de entrada.','warning');
       return false;
     }
-    calcularObservacion(); // asegurar que vaya seteada
+    calcularObservacion();
+  });
+
+  /* ---------- Validación básica ASISTENCIA SEMANAL ---------- */
+  const formSemana = document.getElementById('form-semana');
+  formSemana && formSemana.addEventListener('submit', (e)=>{
+    const ent = semanaEntEl ? semanaEntEl.value : '';
+    const sal = semanaSalEl ? semanaSalEl.value : '';
+    if (sal && !ent) {
+      e.preventDefault();
+      Swal.fire('Atención','Para definir una salida semanal, primero indique la hora de entrada.','warning');
+      return false;
+    }
+    if (ent && sal && sal < ent) {
+      e.preventDefault();
+      Swal.fire('Atención','La hora de salida no puede ser menor que la hora de entrada.','warning');
+      return false;
+    }
   });
 
   /* ---------- SweetAlerts por respuesta del servidor ---------- */
@@ -478,6 +706,34 @@
       text: @json(session('error')),
     });
   @endif
+
+  /* ---------- Init ---------- */
+  document.addEventListener('DOMContentLoaded', () => {
+  if (!vistaSel || !inpSemana) {
+    actualizarExportLinks();
+    return;
+  }
+
+  // Si ya estamos en vista "semana" (por el parámetro de la URL)
+  if (vistaSel.value === 'semana') {
+    inpSemana.disabled = false;
+    inpSemana.classList.remove('week-disabled');
+    inpSemana.title = 'Seleccione una semana';
+
+    // Si no tiene valor, poner la semana actual
+    if (!inpSemana.value) {
+      const now = new Date();
+      inpSemana.value = getISOWeekString(now);
+    }
+
+    filtrarPorSemana(inpSemana.value);   // 👈 aquí se aplica el filtro
+  } else {
+    mostrarMesCompleto();
+  }
+
+  actualizarExportLinks();
+});
+
 </script>
 
 @endsection

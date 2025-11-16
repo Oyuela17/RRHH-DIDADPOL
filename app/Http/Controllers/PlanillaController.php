@@ -13,7 +13,8 @@ use App\Models\ISRPlanilla;
 use App\Models\ControlAsistencia;
 use App\Models\Planilla;
 use App\Models\PersonaPlanilla; 
-use App\Models\EmpleadoContratoHistorial; 
+use App\Models\EmpleadoContratoHistorial; // <-- usando historial para fecha y salario
+
 class PlanillaController extends Controller
 {
     public function index(Request $request)
@@ -23,40 +24,51 @@ class PlanillaController extends Controller
                 return $this->store($request);
             } catch (\Throwable $e) {
                 \Log::error('Planilla AJAX error', [
-                    'm' => $e->getMessage(),
+                    'm'     => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
+
                 return response()->json([
                     'message' => 'Error interno',
                     'error'   => $e->getMessage(),
                 ], 500);
             }
         }
+
         return view('planilla.index');
     }
 
     public function store(Request $request)
     {
         $accion = $request->input('accion');
+
         return match ($accion) {
-            'ver_planilla' => $this->handleView(),
-            default => response()->json(['message' => 'Acción no válida.'], 422),
+            'ver_planilla' => $this->handleView($request),
+            default         => response()->json(['message' => 'Acción no válida.'], 422),
         };
     }
 
-    // Si luego agregas GET /planilla/data, puedes llamar a este método:
+    // si algún día usas GET /planilla/data
     public function data(Request $request)
     {
-        return $this->handleView();
+        return $this->handleView($request);
     }
 
-    private function handleView()
+    /**
+     * Carga la lista de planillas (con filtros opcionales: periodo, cod_persona y año)
+     */
+    private function handleView(Request $request)
     {
+        // Filtros opcionales
+        $periodo    = $request->input('periodo');      // ej: 2025-11-15 (fecha exacta)
+        $codPersona = $request->input('cod_persona');  // ej: 123
+        $anio       = $request->input('anio');         // ej: 2025
+
         // Nombres reales de tablas
-        $tblP   = (new Planilla)->getTable();                  // planillas
-        $tblPer = (new PersonaPlanilla)->getTable();           // personas
-        $tblEmp = (new EmpleadoPlanilla)->getTable();          // empleados
-        $tblHist= (new EmpleadoContratoHistorial)->getTable(); // empleados_contratos_histor
+        $tblP    = (new Planilla)->getTable();                  // planillas
+        $tblPer  = (new PersonaPlanilla)->getTable();           // personas
+        $tblEmp  = (new EmpleadoPlanilla)->getTable();          // empleados
+        $tblHist = (new EmpleadoContratoHistorial)->getTable(); // empleados_contratos_histor
 
         // Existen tablas?
         $hasEmp  = Schema::hasTable($tblEmp);
@@ -66,6 +78,22 @@ class PlanillaController extends Controller
 
         // Query base
         $q = DB::table("$tblP as p");
+
+        // Filtro por periodo (fecha exacta) si viene desde el front
+        if (!empty($periodo)) {
+            $q->where('p.periodo', $periodo);
+        }
+
+        // Filtro por persona (para ver solo un empleado)
+        if (!empty($codPersona)) {
+            $q->where('p.cod_persona', $codPersona);
+        }
+
+        // 🔹 Filtro por año del período (para ver todas las planillas de un año)
+        if (!empty($anio)) {
+            // whereYear usa directamente la columna DATE/TIMESTAMP
+            $q->whereYear('p.periodo', $anio);
+        }
 
         // JOIN personas
         if ($hasPer) {
@@ -100,7 +128,7 @@ class PlanillaController extends Controller
                     : "'' AS nombre_completo"
             ),
 
-            // ✅ RTN desde personas
+            // RTN desde personas
             DB::raw(
                 $hasPer && Schema::hasColumn($tblPer, 'rtn')
                     ? "COALESCE(per.rtn,'') AS rtn"
@@ -133,6 +161,7 @@ class PlanillaController extends Controller
                     : "0 AS salario"
             ),
 
+            // Campos de planillas
             DB::raw("COALESCE(p.dd,0) AS dd"),
             DB::raw("COALESCE(p.dt,0) AS dt"),
             DB::raw("COALESCE(p.salario_bruto,0) AS salario_bruto"),
@@ -152,19 +181,35 @@ class PlanillaController extends Controller
 
             DB::raw("COALESCE(p.total_deducciones,0) AS total_deducciones"),
             DB::raw("COALESCE(p.total_a_pagar,0) AS total_a_pagar"),
+
+            // Seguimos mandando el período formateado a DD-MM-YYYY (como antes)
+            DB::raw("COALESCE(TO_CHAR(p.periodo, 'DD-MM-YYYY'), '') AS periodo"),
         ];
 
         $rowsPlan = $q->select($selects)
-            ->orderBy('p.id')
+            // 🔹 Orden: primero por persona, luego por período (más reciente primero)
+            ->orderBy('p.cod_persona')
+            ->orderBy('p.periodo', 'desc')
             ->get();
 
         $data = $rowsPlan->map(function ($r, $i) {
-            // Formato seguro de la fecha
+            // --------- FECHA DE INGRESO ----------
             $fechaIngreso = '';
             if (!empty($r->fecha_inicio_contrato)) {
                 $fechaIngreso = $r->fecha_inicio_contrato instanceof \DateTimeInterface
                     ? $r->fecha_inicio_contrato->format('Y-m-d')
                     : Carbon::parse($r->fecha_inicio_contrato)->format('Y-m-d');
+            }
+
+            // --------- PERÍODO FORMATEADO (15-11-2025) ----------
+            $periodoFormateado = '';
+            if (!empty($r->periodo)) {
+                try {
+                    $periodoFormateado = Carbon::parse($r->periodo)->format('d-m-Y');
+                } catch (\Exception $e) {
+                    // si no se puede parsear, mandamos el valor tal cual
+                    $periodoFormateado = (string) $r->periodo;
+                }
             }
 
             // Totales de respaldo si en DB están en 0
@@ -183,35 +228,42 @@ class PlanillaController extends Controller
             $totPagar = max(round($salBruto - $totDed, 2), 0);
 
             return [
-                'no'                    => $i + 1,
-                'cod_persona'           => $r->cod_persona,
-                'nombre'                => $r->nombre_completo,
-                'rtn'                   => $r->rtn,     // ✅ Aquí ya sale RTN
-                'dni'                   => $r->dni,
-                'cargo'                 => $r->nom_puesto,
-                'fecha_ingreso'         => $fechaIngreso,
+                'no'                      => $i + 1,
+                'cod_persona'             => $r->cod_persona,
+                'nombre'                  => $r->nombre_completo,
+                'rtn'                     => $r->rtn,
+                'dni'                     => $r->dni,
+                'cargo'                   => $r->nom_puesto,
+                'fecha_ingreso'           => $fechaIngreso,
 
-                'salario'               => (float)($r->salario ?? 0),
-                'salariobruto'          => $salBruto,
+                'salario'                 => (float)($r->salario ?? 0),
+                'salariobruto'            => $salBruto,
 
-                'ihss'                  => (float)$r->ihss,
-                'isr'                   => (float)$r->isr,
-                'injupemp'              => (float)$r->injupemp,
-                'vecinal'               => (float)$r->impuesto_vecinal,
+                'ihss'                    => (float)$r->ihss,
+                'isr'                     => (float)$r->isr,
+                'injupemp'                => (float)$r->injupemp,
+                'vecinal'                 => (float)$r->impuesto_vecinal,
 
-                'dt'                    => (int)$r->dt,
-                'dd'                    => (int)$r->dd,
-                'dias_descargados'      => (int)$r->dias_descargados,
+                'dt'                      => (int)$r->dt,
+                'dd'                      => (int)$r->dd,
+                'dias_descargados'        => (int)$r->dias_descargados,
 
-                'injupemp_reingresos'      => (float)$r->injupemp_reingresos,
-                'injupemp_prestamos'       => (float)$r->injupemp_prestamos,
-                'prestamo_banco_atlantida' => (float)$r->prestamo_banco_atlantida,
-                'pagos_deducibles'         => (float)$r->pagos_deducibles,
-                'colegio_admon_empresas'   => (float)$r->colegio_admon_empresas,
-                'cuota_coop_elga'          => (float)$r->cuota_coop_elga,
+                'injupemp_reingresos'     => (float)$r->injupemp_reingresos,
+                'injupemp_prestamos'      => (float)$r->injupemp_prestamos,
+                'prestamo_banco_atlantida'=> (float)$r->prestamo_banco_atlantida,
+                'pagos_deducibles'        => (float)$r->pagos_deducibles,
+                'colegio_admon_empresas'  => (float)$r->colegio_admon_empresas,
+                'cuota_coop_elga'         => (float)$r->cuota_coop_elga,
 
-                'total_deducciones'     => ($r->total_deducciones > 0) ? (float)$r->total_deducciones : round($totDed, 2),
-                'total_a_pagar'         => ($r->total_a_pagar > 0) ? (float)$r->total_a_pagar : $totPagar,
+                'total_deducciones'       => ($r->total_deducciones > 0)
+                                                ? (float)$r->total_deducciones
+                                                : round($totDed, 2),
+                'total_a_pagar'           => ($r->total_a_pagar > 0)
+                                                ? (float)$r->total_a_pagar
+                                                : $totPagar,
+
+                // 👉 periodo ya formateado para la tabla: 15-11-2025
+                'periodo'                 => $periodoFormateado,
             ];
         })->values()->all();
 
@@ -221,7 +273,7 @@ class PlanillaController extends Controller
     private function calcularISR(float $salarioMensual): float
     {
         $rangos = ISRPlanilla::where('tipo', 'ISR')->orderBy('sueldo_inicio')->get();
-        $base = $salarioMensual;
+        $base   = $salarioMensual;
         $totalISR = 0.0;
 
         foreach ($rangos as $rango) {

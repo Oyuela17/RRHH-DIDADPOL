@@ -3715,14 +3715,9 @@ app.get('/api/asistencia/:cod_empleado/status-hoy', async (req, res) => {
   }
 });
 
-
-
-
-
-
-//planilla 
-
-// ========= POST: Crear/Actualizar Planilla =========
+// Planilla
+// ==================== PLANILLA ====================
+// Helpers
 const round2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 async function calcISR(client, salarioMensual) {
@@ -3757,11 +3752,14 @@ async function calcVecinal(client, salarioMensual) {
   return round2(impAnual / 12);
 }
 
+// ========= POST: Crear/Actualizar Planilla (con modo PREVIEW) =========
 app.post('/api/planillas', async (req, res) => {
   const client = await pool.connect();
   try {
-    const {
+    let {
       cod_persona,
+      periodo,                  // opcional: si no viene, usamos hoy (YYYY-MM-DD)
+      solo_preview,             // <-- NUEVO: true = solo calcular, false = guardado real
       injupemp_reingresos = 0,
       injupemp_prestamos = 0,
       prestamo_banco_atlantida = 0,
@@ -3770,57 +3768,73 @@ app.post('/api/planillas', async (req, res) => {
       cuota_coop_elga = 0
     } = req.body;
 
-    if (!cod_persona) return res.status(400).json({ error: 'cod_persona es requerido' });
+    solo_preview = Boolean(solo_preview);
 
-    await client.query('BEGIN');
+    if (!cod_persona) {
+      return res.status(400).json({ ok: false, error: 'cod_persona es requerido' });
+    }
 
-    // Persona + empleado
+    // Si no viene "periodo" en el body, usamos la fecha actual (YYYY-MM-DD)
+    if (!periodo) {
+      const hoy = new Date();
+      const y = hoy.getFullYear();
+      const m = String(hoy.getMonth() + 1).padStart(2, '0');
+      const d = String(hoy.getDate()).padStart(2, '0');
+      periodo = `${y}-${m}-${d}`; // ejemplo: 2025-11-15
+    }
+
+    // ================= PERSONA + EMPLEADO =================
     const per = await client.query(
       `SELECT p.cod_persona, p.nombre_completo, p.rtn, p.dni,
               e.cod_empleado, e.cod_puesto
          FROM personas p
          JOIN empleados e ON e.cod_persona = p.cod_persona
         WHERE p.cod_persona = $1
-        LIMIT 1`, [cod_persona]
+        LIMIT 1`,
+      [cod_persona]
     );
     if (!per.rowCount) throw new Error('Persona/Empleado no encontrado');
     const { cod_empleado, cod_puesto, nombre_completo, rtn, dni } = per.rows[0];
 
-    // Puesto
+    // ================= PUESTO =================
     const pu = await client.query(
-      `SELECT nom_puesto FROM puestos WHERE cod_puesto = $1 LIMIT 1`, [cod_puesto]
+      `SELECT nom_puesto FROM puestos WHERE cod_puesto = $1 LIMIT 1`,
+      [cod_puesto]
     );
     const nom_puesto = pu.rows[0]?.nom_puesto || null;
 
-    // Contrato activo
+    // ================= CONTRATO ACTIVO =================
     const cont = await client.query(
       `SELECT salario, fecha_inicio_contrato
          FROM empleados_contratos_histor
         WHERE cod_empleado = $1 AND contrato_activo = true
         ORDER BY fecha_inicio_contrato DESC
-        LIMIT 1`, [cod_empleado]
+        LIMIT 1`,
+      [cod_empleado]
     );
     const salarioBase = Number(cont.rows[0]?.salario || 0);
     const fecha_inicio_contrato = cont.rows[0]?.fecha_inicio_contrato || null;
 
-    // Asistencia → DT/DD (igual que en tu controlador Laravel)
+    // ========= Asistencia → DT/DD =========
     const dtQ = await client.query(
       `SELECT COUNT(DISTINCT fecha)::int AS dt
          FROM control_asistencia
-        WHERE cod_empleado = $1 AND tipo_registro = 'Entrada'`,
+        WHERE cod_empleado = $1
+          AND observacion IN ('Asistencia normal', 'Horas extra')`,
       [cod_empleado]
     );
+
     const dt = Math.max(0, Math.min(30, Number(dtQ.rows[0]?.dt || 0)));
     const dd = 30 - dt;
 
-    // Cálculos de ley (no editables)
+    // ========= Cálculos de ley (no editables) =========
     const salario_bruto = round2((salarioBase / 30) * dt);
     const ihss = round2(salario_bruto * 0.025);
     const injupemp = round2(salario_bruto * 0.095);
     const isr = await calcISR(client, salario_bruto);
     const impuesto_vecinal = await calcVecinal(client, salario_bruto);
 
-    // Suma de autorizadas (manuales del modal)
+    // Deducciones autorizadas
     const autorizadas =
       Number(injupemp_reingresos) +
       Number(injupemp_prestamos) +
@@ -3829,55 +3843,86 @@ app.post('/api/planillas', async (req, res) => {
       Number(colegio_admon_empresas) +
       Number(cuota_coop_elga);
 
-    const total_deducciones = round2(ihss + isr + injupemp + impuesto_vecinal + autorizadas);
+    const total_deducciones = round2(
+      ihss + isr + injupemp + impuesto_vecinal + autorizadas
+    );
     const total_a_pagar = Math.max(round2(salario_bruto - total_deducciones), 0);
 
-    // Upsert por cod_persona
-    const ex = await client.query(
-      `SELECT id FROM planillas WHERE cod_persona = $1 LIMIT 1`, [cod_persona]
-    );
+    // ================== SI ES GUARDO REAL → UPSERT EN planillas ==================
+    if (!solo_preview) {
+      await client.query('BEGIN');
 
-    if (ex.rowCount) {
-      await client.query(
-        `UPDATE planillas SET
-           dd=$2, dt=$3, salario_bruto=$4,
-           ihss=$5, isr=$6, injupemp=$7, impuesto_vecinal=$8,
-           dias_descargados=$2,
-           injupemp_reingresos=$9, injupemp_prestamos=$10, prestamo_banco_atlantida=$11,
-           pagos_deducibles=$12, colegio_admon_empresas=$13, cuota_coop_elga=$14,
-           total_deducciones=$15, total_a_pagar=$16, creado_en=NOW()
-         WHERE id=$1`,
-        [
-          ex.rows[0].id, dd, dt, salario_bruto,
-          ihss, isr, injupemp, impuesto_vecinal,
-          injupemp_reingresos, injupemp_prestamos, prestamo_banco_atlantida,
-          pagos_deducibles, colegio_admon_empresas, cuota_coop_elga,
-          total_deducciones, total_a_pagar
-        ]
+      const ex = await client.query(
+        `SELECT id
+           FROM planillas
+          WHERE cod_persona = $1
+            AND periodo     = $2
+          LIMIT 1`,
+        [cod_persona, periodo]
       );
-    } else {
-      await client.query(
-        `INSERT INTO planillas
-         (cod_persona, dd, dt, salario_bruto, ihss, isr, injupemp, impuesto_vecinal, dias_descargados,
-          injupemp_reingresos, injupemp_prestamos, prestamo_banco_atlantida, pagos_deducibles,
-          colegio_admon_empresas, cuota_coop_elga, total_deducciones, total_a_pagar, creado_en)
-         VALUES
-         ($1,$2,$3,$4,$5,$6,$7,$8,$2,$9,$10,$11,$12,$13,$14,$15,$16,NOW())`,
-        [
-          cod_persona, dd, dt, salario_bruto,
-          ihss, isr, injupemp, impuesto_vecinal,
-          injupemp_reingresos, injupemp_prestamos, prestamo_banco_atlantida,
-          pagos_deducibles, colegio_admon_empresas, cuota_coop_elga,
-          total_deducciones, total_a_pagar
-        ]
-      );
+
+      if (ex.rowCount) {
+        // Actualiza la planilla de ESA persona en ESE periodo
+        await client.query(
+          `UPDATE planillas SET
+             dd                      = $2,
+             dt                      = $3,
+             salario_bruto           = $4,
+             ihss                    = $5,
+             isr                     = $6,
+             injupemp                = $7,
+             impuesto_vecinal        = $8,
+             dias_descargados        = $2,
+             injupemp_reingresos     = $9,
+             injupemp_prestamos      = $10,
+             prestamo_banco_atlantida= $11,
+             pagos_deducibles        = $12,
+             colegio_admon_empresas  = $13,
+             cuota_coop_elga         = $14,
+             total_deducciones       = $15,
+             total_a_pagar           = $16,
+             periodo                 = $17,
+             creado_en               = NOW()
+           WHERE id = $1`,
+          [
+            ex.rows[0].id,
+            dd, dt, salario_bruto,
+            ihss, isr, injupemp, impuesto_vecinal,
+            injupemp_reingresos, injupemp_prestamos, prestamo_banco_atlantida,
+            pagos_deducibles, colegio_admon_empresas, cuota_coop_elga,
+            total_deducciones, total_a_pagar,
+            periodo
+          ]
+        );
+      } else {
+        // Inserta nueva planilla para ese periodo
+        await client.query(
+          `INSERT INTO planillas
+           (cod_persona, dd, dt, salario_bruto, ihss, isr, injupemp, impuesto_vecinal, dias_descargados,
+            injupemp_reingresos, injupemp_prestamos, prestamo_banco_atlantida, pagos_deducibles,
+            colegio_admon_empresas, cuota_coop_elga, total_deducciones, total_a_pagar, periodo, creado_en)
+           VALUES
+           ($1,$2,$3,$4,$5,$6,$7,$8,$2,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())`,
+          [
+            cod_persona,
+            dd, dt, salario_bruto,
+            ihss, isr, injupemp, impuesto_vecinal,
+            injupemp_reingresos, injupemp_prestamos, prestamo_banco_atlantida,
+            pagos_deducibles, colegio_admon_empresas, cuota_coop_elga,
+            total_deducciones, total_a_pagar,
+            periodo
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
     }
 
-    await client.query('COMMIT');
-
-    // Respuesta para llenar el modal (no editables + datos básicos)
+    // Respuesta para el modal (igual para preview y guardado)
     res.json({
       ok: true,
+      solo_preview,
+      periodo,
       persona: { cod_persona, nombre_completo, rtn, dni },
       puesto: { nom_puesto },
       contrato: { fecha_inicio_contrato, salario: salarioBase },
@@ -3887,7 +3932,9 @@ app.post('/api/planillas', async (req, res) => {
       }
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {}
     console.error('❌ POST /api/planillas:', err);
     res.status(500).json({ ok: false, error: err.message });
   } finally {
@@ -3895,7 +3942,8 @@ app.post('/api/planillas', async (req, res) => {
   }
 });
 
-// Actualizar deducciones autorizadas de una planilla (por cod_persona)
+// ========= PUT: Actualizar deducciones autorizadas =========
+// (por ahora, sobre la planilla más reciente de esa persona)
 app.put('/api/planillas/by-persona/:cod_persona', async (req, res) => {
   const { cod_persona } = req.params;
 
@@ -3914,11 +3962,14 @@ app.put('/api/planillas/by-persona/:cod_persona', async (req, res) => {
       `SELECT id, salario_bruto, ihss, isr, injupemp, impuesto_vecinal
          FROM planillas
         WHERE cod_persona = $1
+        ORDER BY creado_en DESC
         LIMIT 1`,
       [cod_persona]
     );
     if (!base.rowCount) {
-      return res.status(404).json({ ok: false, message: 'Planilla no encontrada para esa persona' });
+      return res
+        .status(404)
+        .json({ ok: false, message: 'Planilla no encontrada para esa persona' });
     }
 
     const row = base.rows[0];
@@ -3930,10 +3981,18 @@ app.put('/api/planillas/by-persona/:cod_persona', async (req, res) => {
       Number(colegio_admon_empresas) +
       Number(cuota_coop_elga);
 
-    const total_deducciones =
-      Number(row.ihss) + Number(row.isr) + Number(row.injupemp) + Number(row.impuesto_vecinal) + autorizadas;
+    const total_deducciones = round2(
+      Number(row.ihss) +
+      Number(row.isr) +
+      Number(row.injupemp) +
+      Number(row.impuesto_vecinal) +
+      autorizadas
+    );
 
-    const total_a_pagar = Math.max(Number(row.salario_bruto) - Number(total_deducciones), 0);
+    const total_a_pagar = Math.max(
+      round2(Number(row.salario_bruto) - Number(total_deducciones)),
+      0
+    );
 
     const upd = await client.query(
       `UPDATE planillas
@@ -3970,11 +4029,8 @@ app.put('/api/planillas/by-persona/:cod_persona', async (req, res) => {
   }
 });
 
-
-
-// DELETE: borrar planilla por COD_PERSONA
+// ========= DELETE: borrar planillas por COD_PERSONA =========
 app.delete('/api/planillas/by-persona/:cod_persona', async (req, res) => {
-  // validar que sea número
   const cod_persona = parseInt(req.params.cod_persona, 10);
   if (Number.isNaN(cod_persona)) {
     return res.status(400).json({ ok: false, error: 'cod_persona inválido' });
@@ -3987,20 +4043,25 @@ app.delete('/api/planillas/by-persona/:cod_persona', async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ ok: false, message: 'No existe planilla para ese cod_persona' });
+      return res
+        .status(404)
+        .json({ ok: false, message: 'No existe planilla para ese cod_persona' });
     }
 
     res.json({ ok: true, message: 'Planilla eliminada', deleted: result.rows });
   } catch (err) {
-    // Si hay FK, puede venir 23503 (foreign_key_violation)
     if (err.code === '23503') {
       return res.status(409).json({
         ok: false,
-        error: 'No se puede eliminar porque está referenciada por otros registros (FK).'
+        error:
+          'No se puede eliminar porque está referenciada por otros registros (FK).'
       });
     }
     console.error('DELETE /api/planillas/by-persona:', err);
-    res.status(500).json({ ok: false, error: err.message || 'Error al eliminar la planilla' });
+    res.status(500).json({
+      ok: false,
+      error: err.message || 'Error al eliminar la planilla'
+    });
   }
 });
 

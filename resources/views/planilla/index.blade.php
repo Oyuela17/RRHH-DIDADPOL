@@ -5,6 +5,15 @@
 <link rel="stylesheet" href="{{ asset('vendor/datatable/datatables.min.css') }}">
 <link rel="stylesheet" href="{{ asset('css/planilla.css') }}">
 
+@php
+    $accionesPlanilla = $accionesPermitidas['PLANILLA'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
+
 <div class="titulo-con-linea">
   <h2>Cálculo de Planilla</h2>
 </div>
@@ -19,9 +28,15 @@
 <div class="lado-derecho">
 
     <!-- Botón NUEVO -->
-    <button type="button" class="btn btn-nuevo" onclick="mostrarFormulario()">
-      <i class="fas fa-plus"></i> Nuevo Registro
-    </button>
+   <button
+  type="button"
+  class="btn btn-nuevo"
+  onclick="mostrarFormulario()"
+  data-bloqueado="{{ $accionesPlanilla['crear'] ? '0' : '1' }}"
+>
+  <i class="fas fa-plus"></i> Nuevo Registro
+</button>
+
 
     <!-- 🔹 Contenedor que controla espaciado/alineación -->
     <div class="toolbar-filtros">
@@ -227,9 +242,17 @@
     </div>
 
     <div class="modal-footer">
-      <button id="btnGuardarPlanilla" class="btn btn-primary">Guardar</button>
-      <button class="btn btn-danger" onclick="cerrarModal()">Cancelar</button>
-    </div>
+  <button
+    id="btnGuardarPlanilla"
+    class="btn btn-primary"
+    data-bloqueado-crear="{{ $accionesPlanilla['crear'] ? '0' : '1' }}"
+    data-bloqueado-actualizar="{{ $accionesPlanilla['actualizar'] ? '0' : '1' }}"
+  >
+    Guardar
+  </button>
+  <button class="btn btn-danger" onclick="cerrarModal()">Cancelar</button>
+</div>
+
   </div>
 </div>
 @endsection
@@ -243,13 +266,17 @@
 
 @section('scripts')
 <script>
+const P_CAN_CREATE_PLANILLA   = {{ $accionesPlanilla['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_PLANILLA   = {{ $accionesPlanilla['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_PLANILLA   = {{ $accionesPlanilla['eliminar'] ? 'true' : 'false' }};
+
 const API_BASE = 'https://rrhh-didadpol-1.onrender.com/api';
 let modalMode = 'nuevo';
 let currentCodPersona = null;
 
 // 🔹 Filtros globales para la tabla
-let filtroCodPersona = null; // se llena al hacer clic en el nombre
-let filtroAnio       = '';   // se llena desde el select #planillaAnio
+let filtroCodPersona = null;
+let filtroAnio       = '';
 
 const modal = document.getElementById('modalPlanilla');
 
@@ -263,58 +290,35 @@ const fmt = v => nf2.format(num(v));
 
 function formatDate(val) {
   if (!val) return '';
-
-  // Caso 1: yyyy-mm-dd
   let m = String(val).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) {
     const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     return `${Number(m[3])} ${meses[Number(m[2]) - 1]} ${m[1]}`;
   }
-
-  // Caso 2: ISO completo yyyy-mm-ddTHH:MM:SSZ
   let iso = Date.parse(val);
   if (!isNaN(iso)) {
     const d = new Date(iso);
     const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
     return `${d.getUTCDate()} ${meses[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   }
-
   return val;
 }
 
 function formatPeriodo(val) {
   if (!val) return '';
-
-  // Caso 1: yyyy-mm-dd
   let m = String(val).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) {
-    const meses = [
-      'enero','febrero','marzo','abril','mayo','junio',
-      'julio','agosto','septiembre','octubre','noviembre','diciembre'
-    ];
-    const año = m[1];
-    const mes = meses[ Number(m[2]) - 1 ];
-    const dia = Number(m[3]);
-    return `${dia} ${mes} ${año}`;
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    return `${Number(m[3])} ${meses[Number(m[2]) - 1]} ${m[1]}`;
   }
-
-  // Caso 2: dd-mm-yyyy
   m = String(val).match(/^(\d{2})-(\d{2})-(\d{4})$/);
   if (m) {
-    const meses = [
-      'enero','febrero','marzo','abril','mayo','junio',
-      'julio','agosto','septiembre','octubre','noviembre','diciembre'
-    ];
-    const dia = Number(m[1]);
-    const mes = meses[ Number(m[2]) - 1 ];
-    const año = m[3];
-    return `${dia} ${mes} ${año}`;
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    return `${Number(m[1])} ${meses[Number(m[2]) - 1]} ${m[3]}`;
   }
-
   return val;
 }
 
-// fecha de hoy en formato dd-mm-yyyy
 function periodoHoy() {
   const d = new Date();
   const dd = String(d.getDate()).padStart(2,'0');
@@ -332,20 +336,9 @@ function resolveSalario(row) {
 }
 
 /* ========= SweetAlert helpers ========= */
-function swalInfo(text, title='Aviso') { return Swal.fire({ icon:'info', title, text }); }
-function swalSuccess(text, title='Éxito') { return Swal.fire({ icon:'success', title, text }); }
-function swalError(text, title='Error') { return Swal.fire({ icon:'error', title, text }); }
-async function swalConfirm(text, title='¿Estás seguro?') {
-  const r = await Swal.fire({
-    icon:'question',
-    title,
-    text,
-    showCancelButton:true,
-    confirmButtonText:'Sí, continuar',
-    cancelButtonText:'No, cancelar'
-  });
-  return r.isConfirmed;
-}
+function swalInfo(text, title='Aviso')     { return Swal.fire({ icon:'info',    title, text }); }
+function swalSuccess(text, title='Éxito')  { return Swal.fire({ icon:'success', title, text }); }
+function swalError(text, title='Error')    { return Swal.fire({ icon:'error',   title, text }); }
 async function runWithLoading(fn, title='Procesando...', text='Por favor espera') {
   Swal.fire({ title, text, allowOutsideClick:false, didOpen:()=>Swal.showLoading() });
   try {
@@ -379,11 +372,15 @@ function configurarCamposParaModo(modo) {
 }
 
 function mostrarFormulario() {
+  if (!P_CAN_CREATE_PLANILLA) {
+    swalError('No tienes permiso para crear registros de planilla.', 'Acción no permitida');
+    return;
+  }
+
   configurarCamposParaModo('nuevo');
   currentCodPersona = null;
   $('#modalTitulo').text('Registro de un nuevo cálculo');
   limpiarModal();
-  // período sugerido para nuevo (hoy)
   $('#lblPeriodo').text(periodoHoy());
 
   if (!$('#selEmpleado').data('loaded')) cargarEmpleados();
@@ -427,7 +424,6 @@ function fillModalFromRow(row) {
   $('#p_total_ded').val(fmt(row.total_deducciones || 0));
   $('#p_total_pagar').val(fmt(row.total_a_pagar || 0));
 
-  // período (si viene del backend)
   if (row.periodo !== undefined) {
     $('#lblPeriodo').text(formatPeriodo(row.periodo));
   }
@@ -436,9 +432,9 @@ function fillModalFromRow(row) {
 function previewTotales() {
   const salario_bruto = num($('#p_salario_bruto').val()),
         ihss = num($('#p_ihss').val()),
-        isr = num($('#p_isr').val()),
-        inj = num($('#p_injupemp').val()),
-        vec = num($('#p_vecinal').val());
+        isr  = num($('#p_isr').val()),
+        inj  = num($('#p_injupemp').val()),
+        vec  = num($('#p_vecinal').val());
   const a1 = num($('#f_inj_reing').val()),
         a2 = num($('#f_inj_prest').val()),
         a3 = num($('#f_banco_atl').val()),
@@ -446,7 +442,7 @@ function previewTotales() {
         a5 = num($('#f_colegio').val()),
         a6 = num($('#f_coop_elga').val());
 
-  const total_ded = ihss + isr + inj + vec + a1 + a2 + a3 + a4 + a5 + a6;
+  const total_ded   = ihss + isr + inj + vec + a1 + a2 + a3 + a4 + a5 + a6;
   const total_pagar = Math.max(salario_bruto - total_ded, 0);
 
   $('#p_total_ded').val(fmt(total_ded));
@@ -461,7 +457,6 @@ $(document).ready(function () {
       url: '{{ route("planilla") }}',
       type: 'POST',
       headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-      // 🔹 Enviamos filtros al backend
       data: function(d){
         d.accion = 'ver_planilla';
         if (filtroCodPersona) d.cod_persona = filtroCodPersona;
@@ -479,15 +474,15 @@ $(document).ready(function () {
     info: false,
     dom: 't',
     columns: [
-      { data: 'nombre', className: 'col-nombre' },                 // 0 (clickable para filtrar)
-      { data: 'dni' },                                             // 1
-      { data: 'cargo' },                                           // 2
-      { data: 'fecha_ingreso', render: v => formatDate(v) },       // 3
-      { data: 'periodo', render: v => formatPeriodo(v) },          // 4
-      { data: null, render: row => `${row.dd ?? ''}/${row.dt ?? ''}` },  // 5
-      { data: null, render: row => fmt(resolveSalario(row)) },     // 6
-      { data: 'total_deducciones', render: v => fmt(v || 0) },     // 7
-      { data: 'total_a_pagar', render: v => fmt(v || 0) },         // 8
+      { data: 'nombre', className: 'col-nombre' },
+      { data: 'dni' },
+      { data: 'cargo' },
+      { data: 'fecha_ingreso', render: v => formatDate(v) },
+      { data: 'periodo',       render: v => formatPeriodo(v) },
+      { data: null, render: row => `${row.dd ?? ''}/${row.dt ?? ''}` },
+      { data: null, render: row => fmt(resolveSalario(row)) },
+      { data: 'total_deducciones', render: v => fmt(v || 0) },
+      { data: 'total_a_pagar',     render: v => fmt(v || 0) },
       {
         data: null,
         orderable: false,
@@ -497,7 +492,7 @@ $(document).ready(function () {
             <button class="btn-editar-vis btn-editar">Editar</button>
             <button class="btn-eliminar-vis btn-eliminar">Eliminar</button>
           </div>`
-      }                                                             // 9
+      }
     ],
     language: { url:'{{ asset("vendor/datatable/es-ES.json") }}' },
     initComplete: function () {
@@ -506,29 +501,24 @@ $(document).ready(function () {
     }
   });
 
-  // Buscar
   $('#planillaSearch').on('input', function(){
     dt.search(this.value).draw();
   });
 
-  // Ordenar por
   $('#planillaOrden').on('change', function(){
     const [idx, dir] = this.value.split('|');
     dt.order([ Number(idx), dir ]).draw();
   });
 
-  // Mostrar X (futuro)
   $('#planillaLength').on('change', function(){
     dt.page.len( Number(this.value) ).draw();
   });
 
-  // 🔹 Filtro por AÑO (select)
   $('#planillaAnio').on('change', function(){
     filtroAnio = this.value || '';
     dt.ajax.reload(null,false);
   });
 
-  // 🔹 Click en NOMBRE → filtrar por ese cod_persona
   $('#tabla_planilla').on('click', 'td.col-nombre', async function(){
     const row = dt.row(this).data();
     if (!row) return;
@@ -536,7 +526,6 @@ $(document).ready(function () {
     dt.ajax.reload(null,false);
   });
 
-  // 🔹 Botón para limpiar filtro persona + año
   $('#btnLimpiarFiltro').on('click', function(){
     filtroCodPersona = null;
     filtroAnio       = '';
@@ -544,13 +533,12 @@ $(document).ready(function () {
     dt.ajax.reload(null,false);
   });
 
-  /* === Helpers para acciones === */
   async function resolveCodPersona(row){
     if (row.cod_persona) return row.cod_persona;
     const dni = row.dni;
     if (!dni) return null;
     try {
-      const res = await fetch(`${API_BASE}/personas/detalle`);
+      const res   = await fetch(`${API_BASE}/personas/detalle`);
       const lista = await res.json();
       const match = (lista || []).find(p => (p.dni || '').trim() === String(dni).trim());
       return match ? match.cod_persona : null;
@@ -562,7 +550,7 @@ $(document).ready(function () {
 
   // VER DETALLES
   $('#tabla_planilla').on('click', '.btn-detalles', async function(){
-    const tr = $(this).closest('tr');
+    const tr  = $(this).closest('tr');
     const row = dt.row(tr).data() || dt.row(tr.prev()).data();
     if (!row) {
       return swalInfo('No se pudo leer la fila seleccionada.');
@@ -579,11 +567,17 @@ $(document).ready(function () {
 
   // EDITAR
   $('#tabla_planilla').on('click', '.btn-editar', async function(){
-    const tr = $(this).closest('tr');
+    if (!P_CAN_UPDATE_PLANILLA) {
+      swalError('No tienes permiso para editar registros de planilla.', 'Acción no permitida');
+      return;
+    }
+
+    const tr  = $(this).closest('tr');
     const row = dt.row(tr).data() || dt.row(tr.prev()).data();
     if (!row) {
       return swalInfo('No se pudo leer la fila seleccionada.');
     }
+
     currentCodPersona = await resolveCodPersona(row);
     if (!currentCodPersona) {
       return swalError('No se pudo identificar el empleado (cod_persona).');
@@ -598,7 +592,12 @@ $(document).ready(function () {
 
   // ELIMINAR
   $('#tabla_planilla').on('click', '.btn-eliminar', async function(){
-    const tr = $(this).closest('tr');
+    if (!P_CAN_DELETE_PLANILLA) {
+      swalError('No tienes permiso para eliminar registros de planilla.', 'Acción no permitida');
+      return;
+    }
+
+    const tr  = $(this).closest('tr');
     const row = dt.row(tr).data() || dt.row(tr.prev()).data();
     if (!row) {
       return swalInfo('No se pudo leer la fila seleccionada.');
@@ -634,9 +633,9 @@ $(document).ready(function () {
 async function cargarEmpleados(){
   try{
     await runWithLoading(async ()=>{
-      const res = await fetch(`${API_BASE}/empleados`);
+      const res       = await fetch(`${API_BASE}/empleados`);
       const empleados = await res.json();
-      const $sel = $('#selEmpleado');
+      const $sel      = $('#selEmpleado');
       $sel.empty().append(`<option value="">— Seleccione empleado —</option>`);
       empleados.forEach(e=>{
         if (e.cod_persona && e.nombre_completo) {
@@ -690,7 +689,7 @@ $('#btnCargarEmpleado').on('click', async function(){
   try{
     const resp = await runWithLoading(()=>postPlanilla({
       cod_persona,
-      solo_preview: true,  // 🔹 Solo previsualizar, no guardar
+      solo_preview: true,
       injupemp_reingresos:0,
       injupemp_prestamos:0,
       prestamo_banco_atlantida:0,
@@ -716,7 +715,7 @@ $('#btnCargarEmpleado').on('click', async function(){
       vecinal: resp.calculados?.impuesto_vecinal,
       total_deducciones: resp.calculados?.total_deducciones,
       total_a_pagar: resp.calculados?.total_a_pagar,
-      periodo: periodoHoy() 
+      periodo: periodoHoy()
     });
     previewTotales();
     swalSuccess('Datos cargados para el cálculo.', 'OK');
@@ -728,14 +727,23 @@ $('#btnCargarEmpleado').on('click', async function(){
 
 /* ===== Guardar planilla ===== */
 $('#btnGuardarPlanilla').on('click', async function(){
+  if (modalMode === 'nuevo' && !P_CAN_CREATE_PLANILLA) {
+    swalError('No tienes permiso para crear registros de planilla.', 'Acción no permitida');
+    return;
+  }
+  if (modalMode === 'editar' && !P_CAN_UPDATE_PLANILLA) {
+    swalError('No tienes permiso para editar registros de planilla.', 'Acción no permitida');
+    return;
+  }
+
   try{
     const payload = {
-      injupemp_reingresos: num($('#f_inj_reing').val()),
-      injupemp_prestamos: num($('#f_inj_prest').val()),
-      prestamo_banco_atlantida: num($('#f_banco_atl').val()),
-      pagos_deducibles: num($('#f_pagos_ded').val()),
-      colegio_admon_empresas: num($('#f_colegio').val()),
-      cuota_coop_elga: num($('#f_coop_elga').val())
+      injupemp_reingresos:      num($('#f_inj_reing').val()),
+      injupemp_prestamos:      num($('#f_inj_prest').val()),
+      prestamo_banco_atlantida:num($('#f_banco_atl').val()),
+      pagos_deducibles:        num($('#f_pagos_ded').val()),
+      colegio_admon_empresas:  num($('#f_colegio').val()),
+      cuota_coop_elga:         num($('#f_coop_elga').val())
     };
 
     if (modalMode === 'editar') {

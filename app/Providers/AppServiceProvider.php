@@ -49,7 +49,7 @@ class AppServiceProvider extends ServiceProvider
             // TRAER PERMISOS DESDE NODE
             // ================================
             try {
-                $response = Http::get("http://localhost:3000/api/permisos/" . $rolId);
+                $response = Http::get("https://rrhh-didadpol-1.onrender.com/api/permisos/" . $rolId);
 
                 if ($response->failed()) {
                     $view->with('modulosPermitidos', []);

@@ -102,7 +102,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-const API_URL = 'http://localhost:3000';   // Tu API Node
+const API_URL = 'https://rrhh-didadpol-1.onrender.com';   // Tu API Node
 let   cacheModulos = [];                   // Para reutilizar la lista de módulos
 
 // ===================== PERMISOS ===========================

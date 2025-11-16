@@ -37,8 +37,7 @@ class BitacoraController extends Controller
         // 2) Llamar al API de Bitácora (Node)
         // ============================
         try {
-            // URL base configurable por .env
-            // Ej: RRHH_API_URL=http://localhost:3000  (SIN la / al final)
+           
             $apiBase = rtrim(env('RRHH_API_URL', 'https://rrhh-didadpol-1.onrender.com'), '/');
             $url     = $apiBase . '/api/bitacora';
 

@@ -27,15 +27,12 @@ use App\Http\Controllers\ReportesController;
 Route::get('/reportes',                    [ReportesController::class, 'index'])->name('reportes.index');
 Route::get('/reportes/empleados/general',  [ReportesController::class, 'empleadosGeneral'])->name('reportes.empleados');
 Route::get('/reportes/asistencia/general', [ReportesController::class, 'asistenciaGeneral'])->name('reportes.asistencia');
-
-
+Route::get('/reportes/planilla/general', [ReportesController::class, 'planillaGeneral'])->name('reportes.planilla');
 
 Route::get('/reportes/exportar/{tipo}/{formato}', [ReportesController::class, 'exportar'])
-    ->whereIn('tipo', ['empleados','asistencia'])
-    ->whereIn('formato', ['html','pdf','excel'])
+    ->whereIn('tipo', ['empleados', 'asistencia', 'planilla'])
+    ->whereIn('formato', ['html', 'pdf', 'excel'])
     ->name('reportes.exportar');
-
-
 
     Route::middleware(['auth'])->group(function () {
     Route::get('/backups', [BackupsUiController::class, 'index'])->name('backups.index');

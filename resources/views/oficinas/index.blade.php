@@ -2,6 +2,16 @@
 @section('title', 'Mantenimiento de Oficinas')
 
 @section('content')
+
+@php
+    // Permisos del módulo EMPLEADOS
+    $accionesEmpleados = $accionesPermitidas['EMPLEADOS'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 <div class="oficinas-wrapper">
   <div class="titulo-con-linea">
     <h2>Mantenimiento de Oficinas</h2>
@@ -9,10 +19,15 @@
 
   <div class="acciones-superiores">
     <div class="lado-izquierdo">
-      <input type="text" id="busqueda" class="form-control" placeholder="Buscar oficina..." oninput="filtrarOficinas()">
+      <input type="text" id="busqueda" class="form-control"
+             placeholder="Buscar oficina..." oninput="filtrarOficinas()">
     </div>
     <div class="lado-derecho">
-      <button class="btn btn-nuevo" id="btnMostrarModal">
+      <button
+        class="btn btn-nuevo"
+        id="btnMostrarModal"
+        data-bloqueado="{{ $accionesEmpleados['crear'] ? '0' : '1' }}"
+      >
         <i class="fas fa-plus"></i> Nueva Oficina
       </button>
     </div>
@@ -119,18 +134,23 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-const api = 'https://rrhh-didadpol-1.onrender.com/api/oficinas?detalles=true';
+// ===== Permisos del módulo EMPLEADOS =====
+const P_CAN_CREATE_EMPLEADOS = {{ $accionesEmpleados['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_EMPLEADOS = {{ $accionesEmpleados['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_EMPLEADOS = {{ $accionesEmpleados['eliminar'] ? 'true' : 'false' }};
+
+const api     = 'https://rrhh-didadpol-1.onrender.com/api/oficinas?detalles=true';
 const apiBase = 'https://rrhh-didadpol-1.onrender.com/api/oficinas';
 const cuerpoTabla = document.getElementById('cuerpoTabla');
-const modal = document.getElementById('modalOficina');
-const btnNuevo = document.getElementById('btnMostrarModal');
-const cancelar = document.getElementById('cancelarOficina');
-const form = document.getElementById('formOficina');
-const idInput = document.getElementById('oficinaId');
+const modal       = document.getElementById('modalOficina');
+const btnNuevo    = document.getElementById('btnMostrarModal');
+const cancelar    = document.getElementById('cancelarOficina');
+const form        = document.getElementById('formOficina');
+const idInput     = document.getElementById('oficinaId');
 
 const nombreOficina = document.getElementById('nombreOficina');
-const telefono = document.getElementById('telefono');
-const aCargo = document.getElementById('aCargo');
+const telefono      = document.getElementById('telefono');
+const aCargo        = document.getElementById('aCargo');
 
 let modo = 'crear';
 
@@ -170,12 +190,12 @@ function bindTelefono(input) {
     const original = input.value;
     const hayInvalidos = /[^0-9\-]/.test(original);
     let limpio = original
-      .replace(/[^0-9\-]+/g, '')   // elimina no permitidos
-      .replace(/\-+/g, '-')        // colapsa guiones
-      .replace(/^-/, '')           // evita empezar con guion
-      .replace(/-$/, '');          // evita terminar con guion
+      .replace(/[^0-9\-]+/g, '')
+      .replace(/\-+/g, '-')
+      .replace(/^-/, '')
+      .replace(/-$/, '');
     input.value = limpio;
-    if (hayInvalidos) avisar('Solo se permite números y guiones.');
+    if (hayInvalidos) avisar('Solo se permiten números y guiones.');
   });
 }
 
@@ -184,7 +204,18 @@ bindSoloLetras(aCargo);
 bindTelefono(telefono);
 
 // ================== CRUD ==================
+
+// Nuevo
 btnNuevo.addEventListener('click', () => {
+  if (!P_CAN_CREATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para crear oficinas.',
+    });
+    return;
+  }
+
   modo = 'crear';
   form.reset();
   idInput.value = '';
@@ -192,20 +223,31 @@ btnNuevo.addEventListener('click', () => {
   modal.style.display = 'flex';
 });
 
+// Cancelar
 cancelar.addEventListener('click', () => modal.style.display = 'none');
 
+// Guardar (crear / editar)
 form.addEventListener('submit', async e => {
   e.preventDefault();
 
-  // Validación final antes de enviar
+  if (modo === 'editar' && !P_CAN_UPDATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para editar oficinas.',
+    });
+    return;
+  }
+
+  // Validaciones finales
   if (!nombreOficina.value || /[^A-ZÁÉÍÓÚÑ ]/.test(nombreOficina.value)) {
-    return Swal.fire('Validación','Solo se permite letras y espacios.','warning');
+    return Swal.fire('Validación','Solo se permiten letras y espacios en el nombre.','warning');
   }
   if (!aCargo.value || /[^A-ZÁÉÍÓÚÑ ]/.test(aCargo.value)) {
-    return Swal.fire('Validación','Solo se permite letras y espacios.','warning');
+    return Swal.fire('Validación','Solo se permiten letras y espacios en el encargado.','warning');
   }
   if (!telefono.value || /[^0-9\-]/.test(telefono.value)) {
-    return Swal.fire('Validación','Solo se permite números y guiones.','warning');
+    return Swal.fire('Validación','Solo se permiten números y guiones en el teléfono.','warning');
   }
 
   const data = {
@@ -241,6 +283,7 @@ form.addEventListener('submit', async e => {
   }
 });
 
+// Cargar tabla
 function cargarOficinas() {
   fetch(api)
     .then(res => res.json())
@@ -261,13 +304,22 @@ function cargarOficinas() {
       });
     })
     .catch(() => {
-      cuerpoTabla.innerHTML = `
-        <tr><td colspan="5" class="text-center">No se pudo cargar la lista de oficinas.</td></tr>
-      `;
+      cuerpoTabla.innerHTML =
+        '<tr><td colspan="5" class="text-center">No se pudo cargar la lista de oficinas.</td></tr>';
     });
 }
 
+// Editar
 function editar(oficina) {
+  if (!P_CAN_UPDATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para editar oficinas.',
+    });
+    return;
+  }
+
   modo = 'editar';
   idInput.value = oficina.cod_oficina;
 
@@ -286,7 +338,17 @@ function editar(oficina) {
   modal.style.display = 'flex';
 }
 
+// Eliminar
 async function eliminar(id, nombre) {
+  if (!P_CAN_DELETE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para eliminar oficinas.',
+    });
+    return;
+  }
+
   Swal.fire({
     title: '¿Eliminar?',
     text: `¿Deseas eliminar la oficina "${nombre}"?`,
@@ -314,6 +376,7 @@ async function eliminar(id, nombre) {
   });
 }
 
+// Filtro búsqueda
 function filtrarOficinas() {
   const valor = document.getElementById('busqueda').value.toLowerCase();
   const filas = cuerpoTabla.querySelectorAll('tr');
@@ -322,6 +385,7 @@ function filtrarOficinas() {
   });
 }
 
+// Cargar municipios
 function cargarMunicipios(callback = null) {
   fetch('https://rrhh-didadpol-1.onrender.com/api/municipios')
     .then(res => res.json())

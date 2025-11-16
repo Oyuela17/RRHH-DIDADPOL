@@ -14,7 +14,7 @@ class PermisosController extends Controller
     {
         $busqueda = strtoupper($request->input('busqueda'));
         $cantidad = $request->input('cantidad', 5); // Por defecto 5
-        $ordenar  = $request->input('ordenar', 'nombre'); // Puede ser 'nombre' o 'fecha'
+        $ordenar = $request->input('ordenar', 'nombre'); // Puede ser 'nombre' o 'fecha'
 
         $roles = DB::table('roles')
             ->when($busqueda, function ($query, $busqueda) {
@@ -29,61 +29,40 @@ class PermisosController extends Controller
             ->appends([
                 'busqueda' => $busqueda,
                 'cantidad' => $cantidad,
-                'ordenar'  => $ordenar,
+                'ordenar' => $ordenar,
             ]);
 
         return view('permisos.index', compact('roles', 'busqueda', 'cantidad', 'ordenar'));
     }
 
     /**
-     * Guardar o actualizar los permisos de un rol directamente en la BD.
-     * Espera en el body:
-     *  - rol_id
-     *  - modulos: [
-     *      {
-     *        modulo_id,
-     *        tiene_acceso,
-     *        puede_crear,
-     *        puede_actualizar,
-     *        puede_eliminar
-     *      }, ...
-     *    ]
+     * Guardar o actualizar los permisos de un rol.
      */
     public function guardarPermisos(Request $request)
     {
-        $rol_id  = (int) $request->input('rol_id');
-        $modulos = $request->input('modulos', []);
+        $rol_id = $request->input('rol_id');
+        $modulos = $request->input('modulos'); // array de objetos con permisos por módulo
 
-        if (!$rol_id || !is_array($modulos) || empty($modulos)) {
-            return response()->json([
-                'ok'    => false,
-                'error' => 'Datos inválidos: se requiere rol_id y al menos un módulo.'
-            ], 400);
+        if (!$rol_id || !is_array($modulos)) {
+            return response()->json(['error' => 'Datos inválidos'], 400);
         }
-
-        DB::beginTransaction();
 
         try {
             foreach ($modulos as $mod) {
-                if (!isset($mod['modulo_id'])) {
-                    continue; // si falta modulo_id, se ignora ese elemento
-                }
-
-                $modulo_id = (int) $mod['modulo_id'];
-
-                // Normalizar valores a boolean
-                $datos = [
-                    'tiene_acceso'     => (bool)($mod['tiene_acceso']     ?? false),
-                    'puede_crear'      => (bool)($mod['puede_crear']      ?? false),
-                    'puede_actualizar' => (bool)($mod['puede_actualizar'] ?? false),
-                    'puede_eliminar'   => (bool)($mod['puede_eliminar']   ?? false),
-                    'updated_at'       => now(),
-                ];
+                $modulo_id = $mod['modulo_id'];
 
                 $existe = DB::table('permisos')
                     ->where('rol_id', $rol_id)
                     ->where('modulo_id', $modulo_id)
                     ->first();
+
+                $datos = [
+                    'tiene_acceso' => $mod['tiene_acceso'] ?? false,
+                    'puede_crear' => $mod['puede_crear'] ?? false,
+                    'puede_actualizar' => $mod['puede_actualizar'] ?? false,
+                    'puede_eliminar' => $mod['puede_eliminar'] ?? false,
+                    'updated_at' => now(),
+                ];
 
                 if ($existe) {
                     DB::table('permisos')
@@ -91,26 +70,17 @@ class PermisosController extends Controller
                         ->update($datos);
                 } else {
                     DB::table('permisos')->insert(array_merge($datos, [
-                        'rol_id'    => $rol_id,
+                        'rol_id' => $rol_id,
                         'modulo_id' => $modulo_id,
-                        'created_at'=> now(),
+                        'created_at' => now()
                     ]));
                 }
             }
 
-            DB::commit();
-
-            return response()->json([
-                'ok'      => true,
-                'mensaje' => 'Permisos guardados correctamente',
-            ]);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-
-            return response()->json([
-                'ok'    => false,
-                'error' => 'Error al guardar permisos: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['mensaje' => 'Permisos guardados correctamente']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al guardar permisos'], 500);
         }
     }
+    
 }

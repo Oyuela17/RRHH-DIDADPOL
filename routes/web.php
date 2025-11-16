@@ -154,7 +154,6 @@ Route::middleware('auth')->post('/verificar-estado', [EstadoUsuarioController::c
 
 Route::get('/permisos', [PermisosController::class, 'index'])->name('permisos.index');
 Route::get('/permisos/rol/{id}', [PermisosController::class, 'ver'])->name('roles.permisosVista');
-Route::post('/permisos/guardar', [PermisosController::class, 'guardarPermisos'])->name('permisos.guardar');
 
 // Empleados
 

@@ -7,15 +7,6 @@
 
 @section('content')
 
-@php
-    $permDatosEmpresa = $accionesPermitidas['RECURSOS HUMANOS'] ?? [
-        'crear'      => false,
-        'actualizar' => false,
-        'eliminar'   => false,
-    ];
-@endphp
-
-
 @if (session('success'))
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -40,9 +31,7 @@
         <p class="empresa-subtitle">Información institucional y de contacto</p>
       </div>
       <div class="empresa-header__actions">
-        <button class="btn btn-editar"
-                id="btnEditarEmpresa"
-                data-bloqueado="{{ $permDatosEmpresa['actualizar'] ? '0' : '1' }}">
+        <button class="btn btn-editar" id="btnEditarEmpresa">
           <i class="fas fa-edit"></i> Editar Datos
         </button>
       </div>
@@ -192,6 +181,7 @@
   const openModal = () => {
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
+    // focus primer input
     setTimeout(() => document.getElementById('nom_empresa')?.focus(), 50);
   };
 
@@ -200,21 +190,7 @@
     modal.setAttribute('aria-hidden', 'true');
   };
 
-  // CLICK EN "EDITAR DATOS" CON VALIDACIÓN DE PERMISO
-  btnAbrir.addEventListener('click', (e) => {
-    const bloqueado = btnAbrir.getAttribute('data-bloqueado');
-    if (bloqueado === '1') {
-      e.preventDefault();
-      Swal.fire({
-        icon: 'error',
-        title: 'Acción no permitida',
-        text: 'No tienes permiso para editar los datos de la empresa.'
-      });
-      return;
-    }
-    openModal();
-  });
-
+  btnAbrir.addEventListener('click', openModal);
   btnCerrar.addEventListener('click', closeModal);
   btnCancelar.addEventListener('click', closeModal);
   modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
@@ -229,10 +205,12 @@
     btnText.textContent = 'Guardando...';
     btnGuardar.classList.add('is-loading');
 
+    // construir payload
     const codEmpresa = document.getElementById('codEmpresa').value;
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
+    // normalización simple de URL
     if (data.pag_web && !/^https?:\/\//i.test(data.pag_web)) {
       data.pag_web = 'https://' + data.pag_web;
     }

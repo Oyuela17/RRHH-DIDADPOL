@@ -1352,26 +1352,24 @@ app.get('/api/permisos/:rol_id', async (req, res) => {
   try {
     const resultado = await pool.query(`
       SELECT 
-        m.id   AS modulo_id, 
-        m.nombre,
-        COALESCE(p.tiene_acceso,    FALSE) AS tiene_acceso,
-        COALESCE(p.puede_crear,     FALSE) AS puede_crear,
-        COALESCE(p.puede_actualizar,FALSE) AS puede_actualizar,
-        COALESCE(p.puede_eliminar,  FALSE) AS puede_eliminar
+        m.id AS modulo_id, 
+        m.nombre, 
+        COALESCE(p.tiene_acceso, FALSE) AS tiene_acceso,
+        COALESCE(p.puede_crear, FALSE) AS puede_crear,
+        COALESCE(p.puede_actualizar, FALSE) AS puede_actualizar,
+        COALESCE(p.puede_eliminar, FALSE) AS puede_eliminar
       FROM modulos m
-      LEFT JOIN permisos p 
-        ON p.modulo_id = m.id 
-       AND p.rol_id    = $1
-      ORDER BY m.orden, m.nombre;
+      LEFT JOIN permisos p ON p.modulo_id = m.id AND p.rol_id = $1
+      ORDER BY m.nombre
     `, [rol_id]);
 
-    // Devuelve un array plano, que tu JS puede recorrer con .find, .forEach, etc.
     res.json(resultado.rows);
   } catch (error) {
     console.error('❌ Error al obtener permisos:', error);
     res.status(500).json({ error: 'Error al obtener permisos' });
   }
 });
+
 
 // ========================================
 // PERMISOS - Crear o actualizar por módulo
@@ -1380,10 +1378,10 @@ app.post('/api/permisos', async (req, res) => {
   const {
     rol_id,
     modulo_id,
-    tiene_acceso    = false,
-    puede_crear     = false,
-    puede_actualizar= false,
-    puede_eliminar  = false
+    tiene_acceso = false,
+    puede_crear = false,
+    puede_actualizar = false,
+    puede_eliminar = false
   } = req.body;
 
   if (!rol_id || !modulo_id) {
@@ -1400,39 +1398,21 @@ app.post('/api/permisos', async (req, res) => {
       // Actualizar
       await pool.query(
         `UPDATE permisos 
-           SET tiene_acceso     = $1,
-               puede_crear      = $2,
-               puede_actualizar = $3,
-               puede_eliminar   = $4,
-               updated_at       = NOW()
-         WHERE rol_id = $5 
-           AND modulo_id = $6`,
-        [
-          tiene_acceso,
-          puede_crear,
-          puede_actualizar,
-          puede_eliminar,
-          rol_id,
-          modulo_id
-        ]
+         SET tiene_acceso = $1,
+             puede_crear = $2,
+             puede_actualizar = $3,
+             puede_eliminar = $4,
+             updated_at = NOW()
+         WHERE rol_id = $5 AND modulo_id = $6`,
+        [tiene_acceso, puede_crear, puede_actualizar, puede_eliminar, rol_id, modulo_id]
       );
     } else {
       // Insertar
       await pool.query(
         `INSERT INTO permisos 
-           (rol_id, modulo_id, tiene_acceso, puede_crear, 
-            puede_actualizar, puede_eliminar, created_at, updated_at)
-         VALUES
-           ($1,     $2,        $3,            $4,
-            $5,             $6,             NOW(), NOW())`,
-        [
-          rol_id,
-          modulo_id,
-          tiene_acceso,
-          puede_crear,
-          puede_actualizar,
-          puede_eliminar
-        ]
+         (rol_id, modulo_id, tiene_acceso, puede_crear, puede_actualizar, puede_eliminar, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
+        [rol_id, modulo_id, tiene_acceso, puede_crear, puede_actualizar, puede_eliminar]
       );
     }
 

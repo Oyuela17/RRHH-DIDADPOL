@@ -3,6 +3,15 @@
 
 @section('content')
 
+@php
+    // Permisos del módulo EMPLEADOS
+    $accionesEmpleados = $accionesPermitidas['EMPLEADOS'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 {{-- ✅ ÉXITO --}}
 @if (session('success'))
 <script>
@@ -18,7 +27,7 @@
 </script>
 @endif
 
-{{-- ⚠️ ADVERTENCIA personalizada (p.ej. "No se aceptan números ni símbolos") --}}
+{{-- ⚠️ ADVERTENCIA --}}
 @if (session('advertencia'))
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -33,7 +42,7 @@
 </script>
 @endif
 
-{{-- ❌ ERROR general --}}
+{{-- ❌ ERROR --}}
 @if (session('error'))
 <script>
   document.addEventListener('DOMContentLoaded', () => {
@@ -48,11 +57,10 @@
 </script>
 @endif
 
-{{-- ❗️Errores de validación (Laravel $errors) --}}
+{{-- ❗️Errores de validación --}}
 @if ($errors->any())
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Muestra el primer error de validación
     Swal.fire({
       icon: 'warning',
       title: 'Validación',
@@ -83,19 +91,30 @@
       </form>
     </div>
     <div class="lado-derecho">
-      <a href="#" class="btn btn-nuevo" id="btnMostrarModal">
+      <a href="#"
+         class="btn btn-nuevo"
+         id="btnMostrarModal"
+         data-bloqueado="{{ $accionesEmpleados['crear'] ? '0' : '1' }}">
         <i class="fas fa-plus"></i> Nuevo Tipo
       </a>
+
       <form method="GET" action="{{ route('tipos.index') }}" class="mostrar-registros">
         <label>Ordenar por</label>
         <select name="ordenar" onchange="this.form.submit()">
-          <option value="nombre" {{ request('ordenar', 'nombre') == 'nombre' ? 'selected' : '' }}>Nombre (A-Z)</option>
-          <option value="fecha" {{ request('ordenar') == 'fecha' ? 'selected' : '' }}>Fecha de creación</option>
+          <option value="nombre" {{ request('ordenar', 'nombre') == 'nombre' ? 'selected' : '' }}>
+            Nombre (A-Z)
+          </option>
+          <option value="fecha" {{ request('ordenar') == 'fecha' ? 'selected' : '' }}>
+            Fecha de creación
+          </option>
         </select>
+
         <label>Mostrar</label>
         <select name="cantidad" onchange="this.form.submit()">
           @foreach([5, 10, 15, 20] as $opcion)
-            <option value="{{ $opcion }}" {{ request('cantidad', 5) == $opcion ? 'selected' : '' }}>{{ $opcion }}</option>
+            <option value="{{ $opcion }}" {{ request('cantidad', 5) == $opcion ? 'selected' : '' }}>
+              {{ $opcion }}
+            </option>
           @endforeach
         </select>
         <span>registros</span>
@@ -119,13 +138,17 @@
             <td>{{ $t['nom_tipo'] }}</td>
             <td>{{ $t['descripcion'] }}</td>
             <td class="acciones-botones">
-              <a href="#" class="btn btn-warning btn-editar"
+              <a href="#"
+                 class="btn btn-warning btn-editar"
                  data-id="{{ $t['cod_tipo_empleado'] }}"
                  data-nombre="{{ $t['nom_tipo'] }}"
                  data-descripcion="{{ $t['descripcion'] }}">
                 Editar
               </a>
-              <form action="{{ route('tipos.destroy', $t['cod_tipo_empleado']) }}" method="POST" class="form-eliminar" data-nombre="{{ $t['nom_tipo'] }}">
+              <form action="{{ route('tipos.destroy', $t['cod_tipo_empleado']) }}"
+                    method="POST"
+                    class="form-eliminar"
+                    data-nombre="{{ $t['nom_tipo'] }}">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="btn btn-danger">Eliminar</button>
@@ -140,7 +163,6 @@
       </tbody>
     </table>
 
-    {{-- PAGINACIÓN --}}
     <div class="paginacion-wrapper">
       {{ $tipos->appends(['busqueda' => request('busqueda')])->links('pagination::bootstrap-4') }}
     </div>
@@ -194,186 +216,142 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById('modalTipo');
-  const form = document.getElementById('formTipo');
-  const tituloModal = document.getElementById('tituloModal');
-  const metodoForm = document.getElementById('metodoForm');
-  const idInput = document.getElementById('tipoId');
-  const nombreInput = document.getElementById('nombreTipo');
-  const descripcionInput = document.getElementById('descripcionTipo');
+  // Permisos desde el backend (módulo EMPLEADOS)
+  const P_CAN_CREATE_EMPLEADOS = {{ $accionesEmpleados['crear'] ? 'true' : 'false' }};
+  const P_CAN_UPDATE_EMPLEADOS = {{ $accionesEmpleados['actualizar'] ? 'true' : 'false' }};
+  const P_CAN_DELETE_EMPLEADOS = {{ $accionesEmpleados['eliminar'] ? 'true' : 'false' }};
 
-  const baseUrl = @json(url('tipos')); // para armar /tipos/{id}
+  document.addEventListener('DOMContentLoaded', () => {
+    const modal             = document.getElementById('modalTipo');
+    const form              = document.getElementById('formTipo');
+    const tituloModal       = document.getElementById('tituloModal');
+    const metodoForm        = document.getElementById('metodoForm');
+    const idInput           = document.getElementById('tipoId');
+    const nombreInput       = document.getElementById('nombreTipo');
+    const descripcionInput  = document.getElementById('descripcionTipo');
+    const baseUrl           = @json(url('tipos'));
+    const btnNuevo          = document.getElementById('btnMostrarModal');
 
-  // Mostrar modal para NUEVO
-  document.getElementById('btnMostrarModal')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    form.action = @json(route('tipos.store'));
-    metodoForm.value = 'POST';
-    tituloModal.textContent = 'Registrar Tipo';
-    form.reset();
-    idInput.value = '';
-    modal.style.display = 'flex';
-  });
-
-  // Cancelar modal
-  document.getElementById('cancelarTipo')?.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
-
-  // EDITAR
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-editar');
-    if (!btn) return;
-    e.preventDefault();
-
-    const id = btn.dataset.id;
-    const nombre = btn.dataset.nombre || '';
-    const descripcion = btn.dataset.descripcion || '';
-
-    form.action = `${baseUrl}/${id}`;
-    metodoForm.value = 'PUT';
-    tituloModal.textContent = 'Editar Tipo';
-    idInput.value = id;
-    nombreInput.value = nombre;
-    descripcionInput.value = descripcion;
-    modal.style.display = 'flex';
-  });
-
-  // Confirmación de ELIMINAR
-  document.querySelectorAll('.form-eliminar').forEach(f => {
-    f.addEventListener('submit', function (e) {
+    // ===== NUEVO =====
+    btnNuevo?.addEventListener('click', (e) => {
       e.preventDefault();
-      const nombre = this.dataset.nombre || '';
-      Swal.fire({
-        title: '¿Eliminar?',
-        text: `¿Deseas eliminar el tipo "${nombre}"?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-      }).then(r => {
-        if (r.isConfirmed) this.submit();
-      });
-    });
-  });
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById('modalTipo');
-  const form = document.getElementById('formTipo');
-  const tituloModal = document.getElementById('tituloModal');
-  const metodoForm = document.getElementById('metodoForm');
-  const idInput = document.getElementById('tipoId');
-  const nombreInput = document.getElementById('nombreTipo');
-  const descripcionInput = document.getElementById('descripcionTipo');
-  const baseUrl = @json(url('tipos'));
 
-  // Mostrar modal NUEVO
-  document.getElementById('btnMostrarModal')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    form.action = @json(route('tipos.store'));
-    metodoForm.value = 'POST';
-    tituloModal.textContent = 'Registrar Tipo';
-    form.reset();
-    idInput.value = '';
-    modal.style.display = 'flex';
-  });
-
-  // Cancelar modal
-  document.getElementById('cancelarTipo')?.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
-
-  // Editar
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-editar');
-    if (!btn) return;
-    e.preventDefault();
-
-    const id = btn.dataset.id;
-    const nombre = btn.dataset.nombre || '';
-    const descripcion = btn.dataset.descripcion || '';
-
-    form.action = `${baseUrl}/${id}`;
-    metodoForm.value = 'PUT';
-    tituloModal.textContent = 'Editar Tipo';
-    idInput.value = id;
-    nombreInput.value = nombre;
-    descripcionInput.value = descripcion;
-    modal.style.display = 'flex';
-  });
-
-  // Confirmar eliminar
-  document.querySelectorAll('.form-eliminar').forEach(f => {
-    f.addEventListener('submit', function (e) {
-      e.preventDefault();
-      const nombre = this.dataset.nombre || '';
-      Swal.fire({
-        title: '¿Eliminar?',
-        text: `¿Deseas eliminar el tipo "${nombre}"?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-      }).then(r => {
-        if (r.isConfirmed) this.submit();
-      });
-    });
-  });
-
-  // ======== VALIDACIÓN EN TIEMPO REAL (solo alerta con caracteres inválidos) ========
-  let ultimoAviso = 0; // anti-spam
-
-  function limpiarYValidar(input) {
-    input.addEventListener('input', () => {
-      const original = input.value;
-
-      // Pasamos a mayúsculas primero (esto NO debe disparar alerta)
-      let upper = original.toUpperCase();
-
-      // ¿Hay caracteres inválidos? (números o símbolos)
-      const hayInvalidos = /[^A-ZÁÉÍÓÚÑ ]/.test(upper);
-
-      // Limpiamos: quitamos inválidos, colapsamos espacios y quitamos espacios iniciales
-      const limpio = upper
-        .replace(/[^A-ZÁÉÍÓÚÑ ]+/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .replace(/^\s+/, '');
-
-      // Actualiza el campo (si solo cambió por mayúsculas/espacios, no mostramos alerta)
-      input.value = limpio;
-
-      // Solo avisamos si realmente había caracteres inválidos
-      if (hayInvalidos) {
-        const ahora = Date.now();
-        if (ahora - ultimoAviso > 1200) { // no más de 1.2s entre avisos
-          ultimoAviso = ahora;
-          Swal.fire({
-            icon: 'warning',
-            title: 'Entrada inválida',
-            text: 'No se aceptan números ni símbolos.',
-            timer: 1400,
-            showConfirmButton: false
-          });
-        }
+      if (!P_CAN_CREATE_EMPLEADOS) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para crear tipos de empleado.',
+        });
+        return;
       }
+
+      form.action         = @json(route('tipos.store'));
+      metodoForm.value    = 'POST';
+      tituloModal.textContent = 'Registrar Tipo';
+      form.reset();
+      idInput.value       = '';
+      modal.style.display = 'flex';
     });
 
-    // También controla pegados (paste)
-    input.addEventListener('paste', (e) => {
-      // Deja que se pegue y el 'input' de arriba hará la limpieza/alerta.
-      setTimeout(() => { /* intencionalmente vacío */ }, 0);
+    // Cancelar modal
+    document.getElementById('cancelarTipo')?.addEventListener('click', () => {
+      modal.style.display = 'none';
     });
-  }
 
-  limpiarYValidar(nombreInput);
-  limpiarYValidar(descripcionInput);
-});
+    // ===== EDITAR =====
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-editar');
+      if (!btn) return;
+      e.preventDefault();
+
+      if (!P_CAN_UPDATE_EMPLEADOS) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para editar tipos de empleado.',
+        });
+        return;
+      }
+
+      const id          = btn.dataset.id;
+      const nombre      = btn.dataset.nombre || '';
+      const descripcion = btn.dataset.descripcion || '';
+
+      form.action            = `${baseUrl}/${id}`;
+      metodoForm.value       = 'PUT';
+      tituloModal.textContent = 'Editar Tipo';
+      idInput.value          = id;
+      nombreInput.value      = nombre;
+      descripcionInput.value = descripcion;
+      modal.style.display    = 'flex';
+    });
+
+    // ===== ELIMINAR =====
+    document.querySelectorAll('.form-eliminar').forEach(f => {
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        if (!P_CAN_DELETE_EMPLEADOS) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Acción no permitida',
+            text: 'No tienes permiso para eliminar tipos de empleado.',
+          });
+          return;
+        }
+
+        const nombre = this.dataset.nombre || '';
+        Swal.fire({
+          title: '¿Eliminar?',
+          text: `¿Deseas eliminar el tipo "${nombre}"?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Sí, eliminar',
+          cancelButtonText: 'Cancelar'
+        }).then(r => {
+          if (r.isConfirmed) this.submit();
+        });
+      });
+    });
+
+    // ===== VALIDACIÓN EN TIEMPO REAL (solo letras/espacios, mayúsculas) =====
+    let ultimoAviso = 0;
+
+    function limpiarYValidar(input) {
+      input.addEventListener('input', () => {
+        const original = input.value;
+        let upper      = original.toUpperCase();
+
+        const hayInvalidos = /[^A-ZÁÉÍÓÚÑ ]/.test(upper);
+
+        const limpio = upper
+          .replace(/[^A-ZÁÉÍÓÚÑ ]+/g, '')
+          .replace(/\s{2,}/g, ' ')
+          .replace(/^\s+/, '');
+
+        input.value = limpio;
+
+        if (hayInvalidos) {
+          const ahora = Date.now();
+          if (ahora - ultimoAviso > 1200) {
+            ultimoAviso = ahora;
+            Swal.fire({
+              icon: 'warning',
+              title: 'Entrada inválida',
+              text: 'No se aceptan números ni símbolos.',
+              timer: 1400,
+              showConfirmButton: false
+            });
+          }
+        }
+      });
+    }
+
+    limpiarYValidar(nombreInput);
+    limpiarYValidar(descripcionInput);
+  });
 </script>
 
 @endsection

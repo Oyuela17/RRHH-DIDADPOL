@@ -2,6 +2,16 @@
 @section('title', 'Mantenimiento de Niveles Educativos')
 
 @section('content')
+
+@php
+    // Permisos del módulo EMPLEADOS (donde cuelga Niveles Educativos)
+    $accionesEmpleados = $accionesPermitidas['EMPLEADOS'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 <div class="niveles-wrapper">
   <div class="titulo-con-linea">
     <h2>Mantenimiento de Niveles Educativos</h2>
@@ -12,7 +22,11 @@
       <input type="text" id="busqueda" class="form-control" placeholder="Buscar nivel educativo..." oninput="filtrarNiveles()">
     </div>
     <div class="lado-derecho">
-      <button class="btn btn-nuevo" id="btnMostrarModal">
+      <button
+        class="btn btn-nuevo"
+        id="btnMostrarModal"
+        data-bloqueado="{{ $accionesEmpleados['crear'] ? '0' : '1' }}"
+      >
         <i class="fas fa-plus"></i> Nuevo Nivel
       </button>
     </div>
@@ -58,6 +72,11 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+// ===== Permisos (módulo EMPLEADOS) =====
+const P_CAN_CREATE_EMPLEADOS = {{ $accionesEmpleados['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_EMPLEADOS = {{ $accionesEmpleados['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_EMPLEADOS = {{ $accionesEmpleados['eliminar'] ? 'true' : 'false' }};
+
 const api = 'https://rrhh-didadpol-1.onrender.com/api/niveles-educativos';
 const cuerpoTabla = document.getElementById('cuerpoTabla');
 const modal = document.getElementById('modalNivel');
@@ -67,7 +86,17 @@ const form = document.getElementById('formNivel');
 const idInput = document.getElementById('nivelId');
 let modo = 'crear';
 
+// ===== Nuevo nivel =====
 btnNuevo.addEventListener('click', () => {
+  if (!P_CAN_CREATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para crear niveles educativos.',
+    });
+    return;
+  }
+
   modo = 'crear';
   form.reset();
   idInput.value = '';
@@ -75,10 +104,22 @@ btnNuevo.addEventListener('click', () => {
   modal.style.display = 'flex';
 });
 
+// ===== Cancelar =====
 cancelar.addEventListener('click', () => modal.style.display = 'none');
 
+// ===== Guardar (crear / editar) =====
 form.addEventListener('submit', async e => {
   e.preventDefault();
+
+  if (modo === 'editar' && !P_CAN_UPDATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para editar niveles educativos.',
+    });
+    return;
+  }
+
   const data = {
     nom_nivel: document.getElementById('nombre').value.trim().toUpperCase(),
     descripcion: document.getElementById('descripcion').value.trim(),
@@ -113,6 +154,7 @@ form.addEventListener('submit', async e => {
   }
 });
 
+// ===== Cargar tabla =====
 function cargarNiveles() {
   fetch(`${api}?detalles=true`)
     .then(res => res.json())
@@ -132,7 +174,17 @@ function cargarNiveles() {
     });
 }
 
+// ===== Editar =====
 function editar(n) {
+  if (!P_CAN_UPDATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para editar niveles educativos.',
+    });
+    return;
+  }
+
   modo = 'editar';
   idInput.value = n.cod_nivel_educativo;
   document.getElementById('nombre').value = n.nom_nivel;
@@ -141,7 +193,17 @@ function editar(n) {
   modal.style.display = 'flex';
 }
 
+// ===== Eliminar =====
 async function eliminar(id, nombre) {
+  if (!P_CAN_DELETE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para eliminar niveles educativos.',
+    });
+    return;
+  }
+
   Swal.fire({
     title: '¿Eliminar?',
     text: `¿Deseas eliminar el nivel "${nombre}"?`,
@@ -169,6 +231,7 @@ async function eliminar(id, nombre) {
   });
 }
 
+// ===== Filtro simple =====
 function filtrarNiveles() {
   const valor = document.getElementById('busqueda').value.toLowerCase();
   const filas = cuerpoTabla.querySelectorAll('tr');

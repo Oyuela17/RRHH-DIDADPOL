@@ -7,6 +7,16 @@
 @endsection
 
 @section('content')
+
+@php
+    // PERMISOS DEL MÓDULO CALENDARIO
+    $acciones = $accionesPermitidas['CALENDARIO'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
   {{-- Metas necesarias --}}
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="employee-code" content="{{ optional(auth()->user()->empleado)->cod_empleado }}">
@@ -16,7 +26,7 @@
     <div id="calendar"></div>
   </div>
   
-<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+  <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Modal personalizado estilo sistema -->
   <div class="modal-rol" id="modalEvento" style="display:none;">
@@ -103,9 +113,30 @@
 
       {{-- FOOTER fijo --}}
       <div class="modal-botones">
-        <button type="submit" form="formEvento" class="btn btn-success">Guardar</button>
+        {{-- Guardar: se usa para crear y actualizar --}}
+        <button
+          type="submit"
+          form="formEvento"
+          class="btn btn-success"
+          id="btnGuardarEvento"
+          data-bloqueado-crear="{{ $acciones['crear'] ? '0' : '1' }}"
+          data-bloqueado-actualizar="{{ $acciones['actualizar'] ? '0' : '1' }}"
+        >
+          Guardar
+        </button>
+
         <button type="button" class="btn btn-danger" id="cancelarEvento">Cancelar</button>
-        <button type="button" class="btn btn-secondary" id="eliminarEvento" style="display:none;">Eliminar</button>
+
+        {{-- Eliminar --}}
+        <button
+          type="button"
+          class="btn btn-secondary"
+          id="eliminarEvento"
+          style="display:none;"
+          data-bloqueado="{{ $acciones['eliminar'] ? '0' : '1' }}"
+        >
+          Eliminar
+        </button>
       </div>
 
     </div>
@@ -114,4 +145,40 @@
 
 @section('scripts')
   @vite(['resources/js/app.js'])
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+    // Bloqueo para GUARDAR (crear / actualizar)
+    document.addEventListener('click', function(e) {
+      const btnGuardar = e.target.closest('#btnGuardarEvento');
+      if (!btnGuardar) return;
+
+      const eventoId = document.getElementById('evento_id').value || '';
+      const esEdicion = eventoId !== '';
+
+      if (esEdicion && btnGuardar.dataset.bloqueadoActualizar === '1') {
+        e.preventDefault();
+        Swal.fire('Acción no permitida', 'No tienes permiso para actualizar eventos.', 'error');
+        return false;
+      }
+
+      if (!esEdicion && btnGuardar.dataset.bloqueadoCrear === '1') {
+        e.preventDefault();
+        Swal.fire('Acción no permitida', 'No tienes permiso para crear eventos.', 'error');
+        return false;
+      }
+    });
+
+    // Bloqueo para ELIMINAR
+    document.addEventListener('click', function(e) {
+      const btnEliminar = e.target.closest('#eliminarEvento');
+      if (!btnEliminar) return;
+
+      if (btnEliminar.dataset.bloqueado === '1') {
+        e.preventDefault();
+        Swal.fire('Acción no permitida', 'No tienes permiso para eliminar eventos.', 'error');
+        return false;
+      }
+    });
+  </script>
 @endsection

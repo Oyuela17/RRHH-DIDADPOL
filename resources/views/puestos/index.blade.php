@@ -2,6 +2,16 @@
 @section('title', 'Mantenimiento de Puestos')
 
 @section('content')
+
+@php
+    // Permisos del módulo EMPLEADOS
+    $accionesEmpleados = $accionesPermitidas['EMPLEADOS'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 <div class="puestos-wrapper">
   <div class="titulo-con-linea">
     <h2>Mantenimiento de Puestos</h2>
@@ -9,10 +19,15 @@
 
   <div class="acciones-superiores">
     <div class="lado-izquierdo">
-      <input type="text" id="busqueda" class="form-control" placeholder="Buscar puesto..." oninput="filtrarPuestos()">
+      <input type="text" id="busqueda" class="form-control"
+             placeholder="Buscar puesto..." oninput="filtrarPuestos()">
     </div>
     <div class="lado-derecho">
-      <button class="btn btn-nuevo" id="btnMostrarModal">
+      <button
+        class="btn btn-nuevo"
+        id="btnMostrarModal"
+        data-bloqueado="{{ $accionesEmpleados['crear'] ? '0' : '1' }}"
+      >
         <i class="fas fa-plus"></i> Nuevo Puesto
       </button>
     </div>
@@ -82,17 +97,22 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-const api = 'https://rrhh-didadpol-1.onrender.com/api/puestos';
-const cuerpoTabla = document.getElementById('cuerpoTabla');
-const modal = document.getElementById('modalPuesto');
-const btnNuevo = document.getElementById('btnMostrarModal');
-const cancelar = document.getElementById('cancelarPuesto');
-const form = document.getElementById('formPuesto');
-const idInput = document.getElementById('puestoId');
-const inputNombre = document.getElementById('nombre');
+// ===== Permisos del módulo EMPLEADOS =====
+const P_CAN_CREATE_EMPLEADOS = {{ $accionesEmpleados['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_EMPLEADOS = {{ $accionesEmpleados['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_EMPLEADOS = {{ $accionesEmpleados['eliminar'] ? 'true' : 'false' }};
+
+const api          = 'https://rrhh-didadpol-1.onrender.com/api/puestos';
+const cuerpoTabla  = document.getElementById('cuerpoTabla');
+const modal        = document.getElementById('modalPuesto');
+const btnNuevo     = document.getElementById('btnMostrarModal');
+const cancelar     = document.getElementById('cancelarPuesto');
+const form         = document.getElementById('formPuesto');
+const idInput      = document.getElementById('puestoId');
+const inputNombre  = document.getElementById('nombre');
 const inputFunciones = document.getElementById('funciones');
-const inputSueldo = document.getElementById('sueldo');
-let modo = 'crear';
+const inputSueldo  = document.getElementById('sueldo');
+let   modo         = 'crear';
 
 // ====== FUNCIÓN GENERAL DE VALIDACIÓN PARA CAMPOS DE TEXTO ======
 let ultimoAviso = 0; // control de frecuencia de alertas
@@ -100,7 +120,7 @@ let ultimoAviso = 0; // control de frecuencia de alertas
 function validarSoloLetras(input) {
   input.addEventListener('input', () => {
     const original = input.value;
-    const upper = original.toUpperCase();
+    const upper    = original.toUpperCase();
 
     // Detectar si hay caracteres inválidos
     const hayInvalidos = /[^A-ZÁÉÍÓÚÑ ]/.test(upper);
@@ -142,6 +162,15 @@ inputSueldo.addEventListener('input', () => {
 
 // ====== Modal NUEVO ======
 btnNuevo.addEventListener('click', () => {
+  if (!P_CAN_CREATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para crear puestos.',
+    });
+    return;
+  }
+
   modo = 'crear';
   form.reset();
   idInput.value = '';
@@ -155,6 +184,23 @@ cancelar.addEventListener('click', () => modal.style.display = 'none');
 // ====== Guardar (crear/editar) ======
 form.addEventListener('submit', async e => {
   e.preventDefault();
+
+  if (modo === 'crear' && !P_CAN_CREATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para crear puestos.',
+    });
+    return;
+  }
+  if (modo === 'editar' && !P_CAN_UPDATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para editar puestos.',
+    });
+    return;
+  }
 
   // Validaciones antes de enviar
   if (!inputNombre.value) {
@@ -171,11 +217,11 @@ form.addEventListener('submit', async e => {
   }
 
   const data = {
-    nom_puesto: inputNombre.value.trim(),
+    nom_puesto:       inputNombre.value.trim(),
     funciones_puesto: inputFunciones.value.trim(),
-    sueldo_base: parseFloat(inputSueldo.value),
-    fec_registro: new Date().toISOString(),
-    usr_registro: 'admin',
+    sueldo_base:      parseFloat(inputSueldo.value),
+    fec_registro:     new Date().toISOString(),
+    usr_registro:     'admin',
     cod_fuente_financiamiento: 1
   };
   const id = idInput.value;
@@ -220,23 +266,42 @@ function cargarPuestos() {
       });
     })
     .catch(() => {
-      cuerpoTabla.innerHTML = `
-        <tr><td colspan="4" class="text-center">No se pudo cargar la lista de puestos.</td></tr>
-      `;
+      cuerpoTabla.innerHTML =
+        '<tr><td colspan="4" class="text-center">No se pudo cargar la lista de puestos.</td></tr>';
     });
 }
 
+// ====== Editar ======
 function editar(p) {
+  if (!P_CAN_UPDATE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para editar puestos.',
+    });
+    return;
+  }
+
   modo = 'editar';
-  idInput.value = p.cod_puesto;
-  inputNombre.value = (p.nom_puesto || '').toString().toUpperCase();
+  idInput.value        = p.cod_puesto;
+  inputNombre.value    = (p.nom_puesto || '').toString().toUpperCase();
   inputFunciones.value = (p.funciones_puesto || '').toString().toUpperCase();
-  inputSueldo.value = p.sueldo_base ?? '';
+  inputSueldo.value    = p.sueldo_base ?? '';
   document.getElementById('tituloModal').textContent = 'Editar Puesto';
   modal.style.display = 'flex';
 }
 
+// ====== Eliminar ======
 async function eliminar(id, nombre) {
+  if (!P_CAN_DELETE_EMPLEADOS) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'No tienes permiso para eliminar puestos.',
+    });
+    return;
+  }
+
   Swal.fire({
     title: '¿Eliminar?',
     text: `¿Deseas eliminar el puesto "${nombre}"?`,
@@ -249,7 +314,7 @@ async function eliminar(id, nombre) {
   }).then(async result => {
     if (result.isConfirmed) {
       try {
-        const res = await fetch(`${api}/${id}`, { method: 'DELETE' });
+        const res  = await fetch(`${api}/${id}`, { method: 'DELETE' });
         const json = await res.json();
         if (res.ok) {
           Swal.fire('Eliminado', json.mensaje || 'Puesto eliminado correctamente', 'success');
@@ -264,6 +329,7 @@ async function eliminar(id, nombre) {
   });
 }
 
+// ====== Filtro búsqueda ======
 function filtrarPuestos() {
   const valor = document.getElementById('busqueda').value.toLowerCase();
   const filas = cuerpoTabla.querySelectorAll('tr');

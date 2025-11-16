@@ -202,24 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const diasUI = document.getElementById('diasUI');
   const btnNuevo = document.getElementById('btnMostrarModal');
 
-  // Avisos (anti-spam)
-  let ultimoAviso = 0;
-  const aviso = (msg) => {
-    const ahora = Date.now();
-    if (ahora - ultimoAviso > 1200) {
-      ultimoAviso = ahora;
-      Swal.fire({ icon:'warning', title:'Entrada inválida', text: msg, timer:1400, showConfirmButton:false });
-    }
-  };
-
-  // Validación de nombre (solo letras/espacios, a mayúsculas)
-  nombreInput.addEventListener('input', () => {
-    const upper = nombreInput.value.toUpperCase();
-    const inval = /[^A-ZÁÉÍÓÚÑ ]/.test(upper);
-    nombreInput.value = upper.replace(/[^A-ZÁÉÍÓÚÑ ]+/g,'').replace(/\s{2,}/g,' ').replace(/^\s+/, '');
-    if (inval) aviso('No se aceptan números ni símbolos en el nombre.');
-  });
-
   // Helpers para días
   const NOMBRE_A_COD = {
     'LUNES': 'LU','MARTES': 'MA','MIERCOLES':'MI','MIÉRCOLES':'MI',
@@ -342,19 +324,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Validación extra antes de enviar
+  // === ÚNICA VALIDACIÓN EXTRA: al menos un día seleccionado ===
   form.addEventListener('submit', (e) => {
-    if (!nombreInput.value || /[^A-ZÁÉÍÓÚÑ ]/.test(nombreInput.value)) {
-      e.preventDefault();
-      return Swal.fire('Validación', 'El nombre solo permite letras y espacios.', 'warning');
-    }
-    if (!inicioInput.value || !finalInput.value) {
-      e.preventDefault();
-      return Swal.fire('Validación', 'Debes ingresar hora de inicio y hora final.', 'warning');
-    }
     if (!diasInput.value) {
       e.preventDefault();
-      return Swal.fire('Validación', 'Selecciona al menos un día laboral.', 'warning');
+      Swal.fire('Validación', 'Selecciona al menos un día laboral.', 'warning');
     }
   });
 });

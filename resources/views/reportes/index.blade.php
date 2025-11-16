@@ -9,6 +9,7 @@
   <div class="tabs-container">
     <button class="tab-btn active" data-tab="empleados">Empleados</button>
     <button class="tab-btn" data-tab="asistencia">Asistencia</button>
+    <button class="tab-btn" data-tab="planilla">Planilla</button>
   </div>
 
   {{-- ==================== PESTAÑA EMPLEADOS ==================== --}}
@@ -120,6 +121,45 @@
       </div>
     </div>
   </div>
+
+  {{-- ==================== PESTAÑA PLANILLA ==================== --}}
+  <div class="tab-content" id="tab-planilla">
+    <div class="titulo-seccion-row">
+      <div class="titulo-seccion">Reporte General de Planilla</div>
+      <div class="acciones-exportar">
+        <span>Descargar:</span>
+        <a class="btn-export html"
+           href="{{ route('reportes.exportar', ['tipo'=>'planilla','formato'=>'html']) }}"
+           target="_blank">
+          <i class="fa-solid fa-file-code"></i> HTML
+        </a>
+        <a class="btn-export excel"
+           href="{{ route('reportes.exportar', ['tipo'=>'planilla','formato'=>'excel']) }}">
+          <i class="fa-solid fa-file-excel"></i> Excel
+        </a>
+        <a class="btn-export pdf"
+           href="{{ route('reportes.exportar', ['tipo'=>'planilla','formato'=>'pdf']) }}">
+          <i class="fa-solid fa-file-pdf"></i> PDF
+        </a>
+      </div>
+    </div>
+
+    <div id="planilla-contenido" class="contenido-caja">
+      <div class="loader">Cargando datos...</div>
+    </div>
+
+    {{-- Gráficas Planilla --}}
+    <div class="charts-grid" id="charts-planilla" style="display:none;">
+      <div class="chart-card">
+        <h5>Deducciones por Tipo</h5>
+        <canvas id="chPlanDeducciones"></canvas>
+      </div>
+      <div class="chart-card">
+        <h5>Salario Bruto vs Neto</h5>
+        <canvas id="chPlanSalarioNeto"></canvas>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -128,6 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const contents = document.querySelectorAll(".tab-content");
   const apiEmpleados = "{{ route('reportes.empleados') }}";
   const apiAsistencia = "{{ route('reportes.asistencia') }}";
+  const apiPlanilla   = "{{ route('reportes.planilla') }}";
 
   // rutas base para exportar asistencia
   const expBaseHtml  = "{{ route('reportes.exportar', ['tipo'=>'asistencia','formato'=>'html']) }}";
@@ -141,10 +182,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Set valores por defecto
   const now = new Date();
-  mesSelect.value = (now.getMonth() + 1).toString();
+  if (mesSelect) {
+    mesSelect.value = (now.getMonth() + 1).toString();
+  }
 
   // Poblar años: 2010 -> año actual (descendente)
-  (function fillYears(){
+  (function fillYears() {
+    if (!anioSelect) return;
     const current = now.getFullYear();
     for (let y = current; y >= 2010; y--) {
       const opt = document.createElement('option');
@@ -161,12 +205,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const expAsisPdf   = document.getElementById('expAsisPdf');
 
   function refreshExportAsistenciaLinks() {
+    if (!mesSelect || !anioSelect) return;
     const mes  = parseInt(mesSelect.value, 10);
     const anio = parseInt(anioSelect.value, 10);
     const q = `?mes=${mes}&anio=${anio}`;
-    expAsisHtml.href  = `${expBaseHtml}${q}`;
-    expAsisExcel.href = `${expBaseExcel}${q}`;
-    expAsisPdf.href   = `${expBasePdf}${q}`;
+    if (expAsisHtml)  expAsisHtml.href  = `${expBaseHtml}${q}`;
+    if (expAsisExcel) expAsisExcel.href = `${expBaseExcel}${q}`;
+    if (expAsisPdf)   expAsisPdf.href   = `${expBasePdf}${q}`;
   }
 
   // Cargar Empleados al inicio
@@ -184,19 +229,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (tab === "empleados") {
         fetchReporte('empleados', apiEmpleados);
-      } else {
+      } else if (tab === "asistencia") {
         refreshExportAsistenciaLinks();
         fetchAsistencia();
+      } else if (tab === "planilla") {
+        fetchReporte('planilla', apiPlanilla);
       }
     });
   });
 
-  btnAplicar.addEventListener('click', () => {
-    refreshExportAsistenciaLinks();
-    fetchAsistencia();
-  });
+  if (btnAplicar) {
+    btnAplicar.addEventListener('click', () => {
+      refreshExportAsistenciaLinks();
+      fetchAsistencia();
+    });
+  }
 
   function fetchAsistencia() {
+    if (!mesSelect || !anioSelect) return;
     const mes  = parseInt(mesSelect.value, 10);
     const anio = parseInt(anioSelect.value, 10);
     fetchReporte('asistencia', `${apiAsistencia}?mes=${mes}&anio=${anio}`);
@@ -205,6 +255,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // ------- Render genérico tabla + KPI ----------
   function fetchReporte(tipo, url) {
     const container = document.getElementById(`${tipo}-contenido`);
+    if (!container) return;
+
     container.innerHTML = '<div class="loader">Cargando datos...</div>';
 
     fetch(url)
@@ -216,8 +268,10 @@ document.addEventListener("DOMContentLoaded", () => {
         // Graficar
         if (tipo === 'empleados') {
           renderChartsEmpleados(data);
-        } else {
+        } else if (tipo === 'asistencia') {
           renderChartsAsistencia(data);
+        } else if (tipo === 'planilla') {
+          renderChartsPlanilla(data);
         }
       })
       .catch(err => {
@@ -229,7 +283,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tipo === 'empleados') {
       const total   = Number(data.kpis?.total ?? 0);
       const activos = Number(data.kpis?.activos ?? 0);
-      const salario = Number(data.kpis?.salario_promedio ?? 0).toLocaleString('es-HN', {minimumFractionDigits:2});
+      const salario = Number(data.kpis?.salario_promedio ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
       const rows    = (data.tabla?.data ?? data.tabla ?? []);
 
       const tablaHtml = rows.map(e => `
@@ -251,11 +305,19 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         <table class="tabla-reporte">
           <thead>
-            <tr><th>Nombre</th><th>DNI</th><th>Oficina</th><th>Puesto</th><th>Salario</th></tr>
+            <tr>
+              <th>Nombre</th>
+              <th>DNI</th>
+              <th>Oficina</th>
+              <th>Puesto</th>
+              <th>Salario</th>
+            </tr>
           </thead>
           <tbody>${tablaHtml}</tbody>
         </table>`;
-    } else {
+    }
+
+    if (tipo === 'asistencia') {
       const empleados   = Number(data.kpis?.empleados ?? 0);
       const asistencia  = Number(data.kpis?.asistencia_pct ?? 0);
       const horasTot    = Number(data.kpis?.horas_totales ?? 0);
@@ -280,11 +342,69 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         <table class="tabla-reporte">
           <thead>
-            <tr><th>Nombre</th><th>Oficina</th><th>Puesto</th><th>Días Presentes</th><th>Horas</th></tr>
+            <tr>
+              <th>Nombre</th>
+              <th>Oficina</th>
+              <th>Puesto</th>
+              <th>Días Presentes</th>
+              <th>Horas</th>
+            </tr>
           </thead>
           <tbody>${tablaHtml}</tbody>
         </table>`;
     }
+
+    // -------- PLANILLA --------
+    if (tipo === 'planilla') {
+      const totalEmp   = Number(data.kpis?.total_empleados ?? 0);
+      const totalDev   = Number(data.kpis?.total_devengado ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+      const totalDed   = Number(data.kpis?.total_deducciones ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+      const totalNeto  = Number(data.kpis?.total_neto_pagar ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+      const salProm    = Number(data.kpis?.salario_promedio ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+      const dedProm    = Number(data.kpis?.deduccion_promedio ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 });
+      const porcDed    = Number(data.kpis?.porcentaje_deduccion ?? 0);
+
+      const rows = (data.tabla?.data ?? data.tabla ?? []);
+
+      const tablaHtml = rows.map(r => `
+        <tr>
+          <td>${r.nombre ?? '-'}</td>
+          <td>${r.dni ?? '-'}</td>
+          <td>${r.cargo ?? '-'}</td>
+          <td>${Number(r.salariobruto ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+          <td>${Number(r.total_deducciones ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+          <td>${Number(r.total_a_pagar ?? 0).toLocaleString('es-HN', { minimumFractionDigits: 2 })}</td>
+          <td>${r.periodo ?? '-'}</td>
+        </tr>`).join('');
+
+      document.getElementById('charts-planilla').style.display = 'grid';
+
+      return `
+        <div class="kpi-grid">
+          <div class="kpi-card"><h4>Empleados en planilla</h4><p>${totalEmp}</p></div>
+          <div class="kpi-card"><h4>Total Devengado</h4><p>L. ${totalDev}</p></div>
+          <div class="kpi-card"><h4>Total Deducciones</h4><p>L. ${totalDed}</p></div>
+          <div class="kpi-card"><h4>Total Neto a Pagar</h4><p>L. ${totalNeto}</p></div>
+          <div class="kpi-card"><h4>Salario Promedio</h4><p>L. ${salProm}</p></div>
+          <div class="kpi-card"><h4>Deducción Promedio</h4><p>L. ${dedProm} (${porcDed.toFixed(2)}%)</p></div>
+        </div>
+        <table class="tabla-reporte">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>DNI</th>
+              <th>Puesto</th>
+              <th>Salario Bruto</th>
+              <th>Total Deducciones</th>
+              <th>Neto a Pagar</th>
+              <th>Período</th>
+            </tr>
+          </thead>
+          <tbody>${tablaHtml}</tbody>
+        </table>`;
+    }
+
+    return '';
   }
 
   // =============== CHARTS ===============
@@ -375,6 +495,70 @@ document.addEventListener("DOMContentLoaded", () => {
         type: 'bar',
         data: { labels, datasets: [{ label: 'Ausencias', data: values }] },
         options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+  }
+
+  function renderChartsPlanilla(data) {
+    const ch = data.charts || {};
+
+    // Deducciones por tipo
+    {
+      const ded = ch.deducciones_por_tipo || {};
+      const dataObj = ded.data || {};
+      const labels = Object.keys(dataObj);
+      const values = Object.values(dataObj).map(v => Number(v));
+      destroyIfExists('plan_deducciones');
+      chartRefs.plan_deducciones = new Chart(document.getElementById('chPlanDeducciones'), {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Monto', data: values }] },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              ticks: {
+                callback: v => 'L. ' + v
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Salario bruto vs neto
+    {
+      const salNet = ch.salario_vs_neto || {};
+      const labels = salNet.labels || [];
+      const brutos = (salNet.series?.salariobruto ?? []).map(v => Number(v));
+      const netos  = (salNet.series?.total_a_pagar ?? []).map(v => Number(v));
+
+      destroyIfExists('plan_salario_neto');
+      chartRefs.plan_salario_neto = new Chart(document.getElementById('chPlanSalarioNeto'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Salario Bruto',
+              data: brutos
+            },
+            {
+              label: 'Neto a Pagar',
+              data: netos
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              ticks: {
+                callback: v => 'L. ' + v
+              }
+            }
+          }
+        }
       });
     }
   }

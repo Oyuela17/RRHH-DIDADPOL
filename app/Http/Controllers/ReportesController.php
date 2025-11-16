@@ -9,23 +9,20 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 
-// 👉 Exportaciones
+
 use Barryvdh\DomPDF\Facade\Pdf;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
 
-// ✅ NUEVO para Excel por Blade
 use Illuminate\Contracts\View\View;
 use Maatwebsite\Excel\Concerns\FromView;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
 class ReportesController extends Controller
 {
-    /**
-     * Base de la API Node (pon en .env: API_RRHH_BASE=https://rrhh-didadpol-1.onrender.com/api)
-     */
+ 
     private string $apiBase;
 
     public function __construct()
@@ -34,7 +31,7 @@ class ReportesController extends Controller
     }
 
     /**
-     * Vista con pestañas (Empleados / Asistencia).
+     * Vista con pestañas (Empleados / Asistencia / Planilla).
      */
     public function index()
     {
@@ -48,23 +45,22 @@ class ReportesController extends Controller
     public function empleadosGeneral(Request $request)
     {
         try {
-            $url = "{$this->apiBase}/reportes/empleados/general";
+            $url  = "{$this->apiBase}/reportes/empleados/general";
             $resp = Http::timeout(25)->acceptJson()->get($url);
 
             if ($resp->failed()) {
                 return $this->apiFail('Empleados', $resp);
             }
 
-            $data = $resp->json();
-
-            // ---------- Filtros y orden sobre la tabla ----------
+            $data  = $resp->json();
             $tabla = collect($data['tabla'] ?? []);
 
-            $busqueda = trim((string)$request->query('busqueda', ''));
-            $oficina  = trim((string)$request->query('oficina', ''));
-            $modalidad= trim((string)$request->query('modalidad', ''));
-            $nivel    = trim((string)$request->query('nivel', ''));
-            $puesto   = trim((string)$request->query('puesto', ''));
+            // ---------- Filtros y orden sobre la tabla ----------
+            $busqueda = trim((string) $request->query('busqueda', ''));
+            $oficina  = trim((string) $request->query('oficina', ''));
+            $modalidad= trim((string) $request->query('modalidad', ''));
+            $nivel    = trim((string) $request->query('nivel', ''));
+            $puesto   = trim((string) $request->query('puesto', ''));
 
             if ($busqueda !== '') {
                 $tabla = $tabla->filter(function ($row) use ($busqueda) {
@@ -83,7 +79,7 @@ class ReportesController extends Controller
 
             $tabla = match ($ordenar) {
                 'salario' => $tabla->sortBy(function ($r) {
-                    return (float)($r['salario'] ?? 0);
+                    return (float) ($r['salario'] ?? 0);
                 }, SORT_REGULAR, $dir === 'desc'),
                 'fecha'   => $tabla->sortBy(function ($r) {
                     return $r['fecha_contratacion'] ?? null;
@@ -94,13 +90,18 @@ class ReportesController extends Controller
             };
 
             // Paginación
-            $paginados = $this->paginate($tabla->values(), $request, perPageDefault: 10, routeName: 'reportes.empleados');
+            $paginados = $this->paginate(
+                $tabla->values(),
+                $request,
+                perPageDefault: 10,
+                routeName: 'reportes.empleados'
+            );
 
             $out = [
-                'kpis'   => $data['kpis']   ?? null,
-                'charts' => $data['charts'] ?? null,
-                'tabla'  => $paginados,
-                'filtros'=> [
+                'kpis'    => $data['kpis']   ?? null,
+                'charts'  => $data['charts'] ?? null,
+                'tabla'   => $paginados,
+                'filtros' => [
                     'busqueda' => $busqueda,
                     'oficina'  => $oficina,
                     'modalidad'=> $modalidad,
@@ -108,7 +109,7 @@ class ReportesController extends Controller
                     'puesto'   => $puesto,
                     'ordenar'  => $ordenar,
                     'dir'      => $dir,
-                ]
+                ],
             ];
 
             return response()->json($out, 200);
@@ -126,9 +127,9 @@ class ReportesController extends Controller
     public function asistenciaGeneral(Request $request)
     {
         try {
-            $now   = Carbon::now();
-            $mes   = (int)$request->query('mes',  $now->month);
-            $anio  = (int)$request->query('anio', $now->year);
+            $now  = Carbon::now();
+            $mes  = (int) $request->query('mes',  $now->month);
+            $anio = (int) $request->query('anio', $now->year);
 
             if ($mes < 1 || $mes > 12 || $anio < 1900) {
                 return response()->json(['error' => 'Parámetros inválidos: mes/anio'], 422);
@@ -145,9 +146,9 @@ class ReportesController extends Controller
             $tabla = collect($data['tabla'] ?? []);
 
             // -------- Filtros --------
-            $busqueda = trim((string)$request->query('busqueda', ''));
-            $oficina  = trim((string)$request->query('oficina', ''));
-            $puesto   = trim((string)$request->query('puesto', ''));
+            $busqueda = trim((string) $request->query('busqueda', ''));
+            $oficina  = trim((string) $request->query('oficina', ''));
+            $puesto   = trim((string) $request->query('puesto', ''));
 
             if ($busqueda !== '') {
                 $tabla = $tabla->filter(function ($r) use ($busqueda) {
@@ -163,14 +164,19 @@ class ReportesController extends Controller
             $dir     = strtolower($request->query('dir', 'asc')) === 'desc' ? 'desc' : 'asc';
 
             $tabla = match ($ordenar) {
-                'dias'    => $tabla->sortBy(fn($r) => (int)($r['dias_presentes'] ?? 0), SORT_REGULAR, $dir === 'desc'),
-                'horas'   => $tabla->sortBy(fn($r) => (float)($r['horas_mes'] ?? 0), SORT_REGULAR, $dir === 'desc'),
+                'dias'    => $tabla->sortBy(fn($r) => (int) ($r['dias_presentes'] ?? 0), SORT_REGULAR, $dir === 'desc'),
+                'horas'   => $tabla->sortBy(fn($r) => (float) ($r['horas_mes'] ?? 0), SORT_REGULAR, $dir === 'desc'),
                 'oficina' => $tabla->sortBy(fn($r) => mb_strtoupper($r['nombre_oficina'] ?? ''), SORT_NATURAL, $dir === 'desc'),
                 default   => $tabla->sortBy(fn($r) => mb_strtoupper($r['nombre'] ?? ''), SORT_NATURAL, $dir === 'desc'),
             };
 
             // Paginación
-            $paginados = $this->paginate($tabla->values(), $request, perPageDefault: 10, routeName: 'reportes.asistencia');
+            $paginados = $this->paginate(
+                $tabla->values(),
+                $request,
+                perPageDefault: 10,
+                routeName: 'reportes.asistencia'
+            );
 
             $out = [
                 'periodo' => $data['periodo'] ?? ['mes' => $mes, 'anio' => $anio],
@@ -194,11 +200,161 @@ class ReportesController extends Controller
         }
     }
 
+    /**
+     * Reporte General de Planilla
+     * GET /reportes/planilla/general?periodo=YYYY-MM-DD&anio=YYYY&busqueda=&ordenar=&dir=
+     *
+     * Usa internamente PlanillaController::data() que ya arma el JSON.
+     */
+    public function planillaGeneral(Request $request)
+    {
+        try {
+            /** @var \App\Http\Controllers\PlanillaController $planillaCtrl */
+            $planillaCtrl = app(PlanillaController::class);
+
+            // data() devuelve JsonResponse con ['data' => [...]]
+            $jsonResp = $planillaCtrl->data($request);
+            $status   = method_exists($jsonResp, 'getStatusCode')
+                ? $jsonResp->getStatusCode()
+                : 200;
+
+            if ($status !== 200) {
+                return response()->json([
+                    'error'  => 'No se pudieron obtener los datos de planilla',
+                    'status' => $status,
+                ], $status);
+            }
+
+            $payload = json_decode($jsonResp->getContent(), true);
+            $rows    = collect($payload['data'] ?? []);
+
+            // ========= Filtros sobre la tabla =========
+            $busqueda = trim((string) $request->query('busqueda', ''));
+            if ($busqueda !== '') {
+                $rows = $rows->filter(function ($r) use ($busqueda) {
+                    return stripos($r['nombre'] ?? '', $busqueda) !== false
+                        || stripos($r['dni'] ?? '', $busqueda) !== false
+                        || stripos($r['rtn'] ?? '', $busqueda) !== false;
+                });
+            }
+
+            // ========= Orden =========
+            $ordenar = $request->query('ordenar', 'nombre'); // nombre|salario|neto|periodo
+            $dir     = strtolower($request->query('dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+            $rows = match ($ordenar) {
+                'salario' => $rows->sortBy(
+                    fn($r) => (float) ($r['salariobruto'] ?? 0),
+                    SORT_REGULAR,
+                    $dir === 'desc'
+                ),
+                'neto'    => $rows->sortBy(
+                    fn($r) => (float) ($r['total_a_pagar'] ?? 0),
+                    SORT_REGULAR,
+                    $dir === 'desc'
+                ),
+                'periodo' => $rows->sortBy(
+                    fn($r) => $r['periodo'] ?? '',
+                    SORT_NATURAL,
+                    $dir === 'desc'
+                ),
+                default   => $rows->sortBy(
+                    fn($r) => mb_strtoupper($r['nombre'] ?? ''),
+                    SORT_NATURAL,
+                    $dir === 'desc'
+                ),
+            };
+
+            // ========= KPIs de planilla =========
+            $totalEmpleados    = $rows->count();
+            $totalDevengado    = $rows->sum(fn($r) => (float) ($r['salariobruto'] ?? 0));
+            $totalDeducciones  = $rows->sum(fn($r) => (float) ($r['total_deducciones'] ?? 0));
+            $totalNetoPagar    = $rows->sum(fn($r) => (float) ($r['total_a_pagar'] ?? 0));
+            $salarioPromedio   = $totalEmpleados > 0 ? $totalDevengado / $totalEmpleados : 0;
+            $deduccionPromedio = $totalEmpleados > 0 ? $totalDeducciones / $totalEmpleados : 0;
+            $porcDeducciones   = $totalDevengado > 0 ? ($totalDeducciones / $totalDevengado) * 100 : 0;
+
+            $kpis = [
+                'total_empleados'      => $totalEmpleados,
+                'total_devengado'      => round($totalDevengado, 2),
+                'total_deducciones'    => round($totalDeducciones, 2),
+                'total_neto_pagar'     => round($totalNetoPagar, 2),
+                'salario_promedio'     => round($salarioPromedio, 2),
+                'deduccion_promedio'   => round($deduccionPromedio, 2),
+                'porcentaje_deduccion' => round($porcDeducciones, 2),
+            ];
+
+            // ========= Charts básicos =========
+            $charts = [
+                'deducciones_por_tipo' => [
+                    'labels' => [
+                        'IHSS',
+                        'ISR',
+                        'INJUPEMP',
+                        'Impuesto Vecinal',
+                        'Injupemp Reingresos',
+                        'Injupemp Préstamos',
+                        'Préstamo Atlántida',
+                        'Pagos Deducibles',
+                        'Colegio Admon.',
+                        'Coop. ELGA',
+                    ],
+                    'data' => [
+                        'ihss'                   => $rows->sum(fn($r) => (float) ($r['ihss'] ?? 0)),
+                        'isr'                    => $rows->sum(fn($r) => (float) ($r['isr'] ?? 0)),
+                        'injupemp'               => $rows->sum(fn($r) => (float) ($r['injupemp'] ?? 0)),
+                        'vecinal'                => $rows->sum(fn($r) => (float) ($r['vecinal'] ?? 0)),
+                        'injupemp_reingresos'    => $rows->sum(fn($r) => (float) ($r['injupemp_reingresos'] ?? 0)),
+                        'injupemp_prestamos'     => $rows->sum(fn($r) => (float) ($r['injupemp_prestamos'] ?? 0)),
+                        'prestamo_banco'         => $rows->sum(fn($r) => (float) ($r['prestamo_banco_atlantida'] ?? 0)),
+                        'pagos_deducibles'       => $rows->sum(fn($r) => (float) ($r['pagos_deducibles'] ?? 0)),
+                        'colegio_admon_empresas' => $rows->sum(fn($r) => (float) ($r['colegio_admon_empresas'] ?? 0)),
+                        'cuota_coop_elga'        => $rows->sum(fn($r) => (float) ($r['cuota_coop_elga'] ?? 0)),
+                    ],
+                ],
+                'salario_vs_neto' => [
+                    'labels' => $rows->pluck('nombre')->all(),
+                    'series' => [
+                        'salariobruto'  => $rows->pluck('salariobruto')->map(fn($v) => (float) $v)->all(),
+                        'total_a_pagar' => $rows->pluck('total_a_pagar')->map(fn($v) => (float) $v)->all(),
+                    ],
+                ],
+            ];
+
+            // ========= Paginación =========
+            $paginados = $this->paginate(
+                $rows->values(),
+                $request,
+                perPageDefault: 10,
+                routeName: 'reportes.planilla'
+            );
+
+            $out = [
+                'kpis'    => $kpis,
+                'charts'  => $charts,
+                'tabla'   => $paginados,
+                'filtros' => [
+                    'busqueda' => $busqueda,
+                    'ordenar'  => $ordenar,
+                    'dir'      => $dir,
+                    'periodo'  => $request->input('periodo'),
+                    'anio'     => $request->input('anio'),
+                ],
+            ];
+
+            return response()->json($out, 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Reporte planilla - excepción', ['msg' => $e->getMessage()]);
+            return response()->json(['error' => 'Error interno al obtener reporte de planilla'], 500);
+        }
+    }
+
     /* =========================================================
      *                   EXPORTACIONES: PDF / EXCEL / HTML
      * =========================================================
      * GET /reportes/exportar/{tipo}/{formato}
-     *   - tipo: empleados | asistencia
+     *   - tipo: empleados | asistencia | planilla
      *   - formato: pdf | excel | html
      * Para asistencia, puedes pasar ?mes=&anio=
      */
@@ -207,29 +363,44 @@ class ReportesController extends Controller
         $tipo    = strtolower($tipo);
         $formato = strtolower($formato);
 
-        if (!in_array($tipo, ['empleados', 'asistencia'], true)) {
+        if (!in_array($tipo, ['empleados', 'asistencia', 'planilla'], true)) {
             return back()->withErrors(['error' => 'Tipo de reporte no soportado.']);
         }
         if (!in_array($formato, ['pdf', 'excel', 'html'], true)) {
             return back()->withErrors(['error' => 'Formato no soportado.']);
         }
 
-        // Endpoint y query (reenviamos mes/anio cuando es asistencia)
-        $endpoint = "{$this->apiBase}/reportes/{$tipo}/general";
-        $query = [];
-        if ($tipo === 'asistencia') {
-            $now = Carbon::now();
-            $query['mes']  = (int)$request->query('mes',  $now->month);
-            $query['anio'] = (int)$request->query('anio', $now->year);
-        }
+        $payload = null;
+        $rows    = [];
 
-        $resp = Http::timeout(40)->acceptJson()->get($endpoint, $query);
-        if ($resp->failed()) {
-            return $this->apiFail(ucfirst($tipo), $resp, $query);
-        }
+        // ====== PLANILLA: usamos nuestro propio método interno ======
+        if ($tipo === 'planilla') {
+            $jsonResp = $this->planillaGeneral($request);
+            if ($jsonResp->getStatusCode() !== 200) {
+                return back()->withErrors(['error' => 'No se pudo obtener el reporte de planilla.']);
+            }
 
-        $payload = $resp->json();
-        $rows    = $this->extractRows($payload['tabla'] ?? []);
+            $payload = $jsonResp->getData(true);
+            $rows    = $this->extractRows($payload['tabla'] ?? []);
+        } else {
+            // ====== Empleados / Asistencia: consumen API Node ======
+            $endpoint = "{$this->apiBase}/reportes/{$tipo}/general";
+            $query    = [];
+
+            if ($tipo === 'asistencia') {
+                $now          = Carbon::now();
+                $query['mes'] = (int) $request->query('mes',  $now->month);
+                $query['anio']= (int) $request->query('anio', $now->year);
+            }
+
+            $resp = Http::timeout(40)->acceptJson()->get($endpoint, $query);
+            if ($resp->failed()) {
+                return $this->apiFail(ucfirst($tipo), $resp, $query);
+            }
+
+            $payload = $resp->json();
+            $rows    = $this->extractRows($payload['tabla'] ?? []);
+        }
 
         // ====== HTML ======
         if ($formato === 'html') {
@@ -285,19 +456,26 @@ class ReportesController extends Controller
     /**
      * Paginar una colección como en tu EmpleadoController.
      */
-    private function paginate(Collection $items, Request $request, int $perPageDefault = 10, ?string $routeName = null): LengthAwarePaginator
-    {
-        $perPage      = (int)$request->query('per_page', $perPageDefault);
-        $currentPage  = (int)$request->query('page', 1);
-        $total        = $items->count();
-        $slice        = $items->slice(($currentPage - 1) * $perPage, $perPage);
+    private function paginate(
+        Collection $items,
+        Request $request,
+        int $perPageDefault = 10,
+        ?string $routeName = null
+    ): LengthAwarePaginator {
+        $perPage     = (int) $request->query('per_page', $perPageDefault);
+        $currentPage = (int) $request->query('page', 1);
+        $total       = $items->count();
+        $slice       = $items->slice(($currentPage - 1) * $perPage, $perPage);
 
         $paginator = new LengthAwarePaginator(
             $slice->values(),
             $total,
             $perPage,
             $currentPage,
-            ['path' => $routeName ? route($routeName) : $request->url(), 'query' => $request->query()]
+            [
+                'path'  => $routeName ? route($routeName) : $request->url(),
+                'query' => $request->query(),
+            ]
         );
 
         return $paginator;
@@ -354,7 +532,7 @@ class ReportesController extends Controller
         $headings = array_map(function ($k) {
             $k = str_replace(['_id', '_cod'], ['', ''], $k);
             $k = str_replace('_', ' ', $k);
-            return mb_convert_case($k, MB_CASE_TITLE, "UTF-8");
+            return mb_convert_case($k, MB_CASE_TITLE, 'UTF-8');
         }, $keys);
 
         // Matriz
@@ -363,8 +541,8 @@ class ReportesController extends Controller
             $row = [];
             foreach ($keys as $k) {
                 $val = $r[$k] ?? null;
-                if (is_bool($val))      $val = $val ? 'Sí' : 'No';
-                if ($val === null)      $val = '-';
+                if (is_bool($val))                     $val = $val ? 'Sí' : 'No';
+                if ($val === null)                    $val = '-';
                 if ($val instanceof \DateTimeInterface) $val = $val->format('Y-m-d H:i:s');
                 $row[] = $val;
             }

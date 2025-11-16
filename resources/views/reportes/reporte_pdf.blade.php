@@ -95,9 +95,7 @@
   }
 
   /* ====== Asistencia: % por oficina & ranking ====== */
-  // Estructura esperada (como en index): [{ nombre_oficina, asistencia_pct }]
   $off = is_array($charts['asistencia_por_oficina'] ?? null) ? $charts['asistencia_por_oficina'] : [];
-  // Ranking ausencias: [{ nombre, ausencias }]
   $rank = is_array($charts['ranking_ausencias'] ?? null) ? array_slice($charts['ranking_ausencias'], 0, 12) : [];
   $rankMax = 0; foreach ($rank as $r) { $rankMax = max($rankMax, (int)($r['ausencias'] ?? 0)); }
 @endphp
@@ -134,7 +132,7 @@
             <small>Mediana: L. {{ number_format((float)($kpis['salario_mediana'] ?? 0),2,'.',',') }}</small>
           </td>
 
-          {{-- Dona mini de Modalidad (SVG compatible DomPDF) --}}
+          {{-- Dona mini de Modalidad (SVG) --}}
           <td class="kpi" style="width:25%;">
             <h4>Distribución por Modalidad</h4>
             @if($modSum>0)
@@ -179,7 +177,45 @@
           </td>
         </tr>
       </table>
-    @else
+
+    @elseif(($tipo ?? '') === 'planilla')
+      <table class="kpis">
+        <tr>
+          <td class="kpi">
+            <h4>Empleados en Planilla</h4>
+            <p>{{ number_format((float)($kpis['total_empleados'] ?? 0),0,'.',',') }}</p>
+          </td>
+          <td class="kpi">
+            <h4>Total Devengado</h4>
+            <p>L. {{ number_format((float)($kpis['total_devengado'] ?? 0),2,'.',',') }}</p>
+          </td>
+          <td class="kpi">
+            <h4>Total Deducciones</h4>
+            <p>L. {{ number_format((float)($kpis['total_deducciones'] ?? 0),2,'.',',') }}</p>
+          </td>
+          <td class="kpi">
+            <h4>Total Neto a Pagar</h4>
+            <p>L. {{ number_format((float)($kpis['total_neto_pagar'] ?? 0),2,'.',',') }}</p>
+          </td>
+        </tr>
+        <tr>
+          <td class="kpi">
+            <h4>Salario Promedio</h4>
+            <p>L. {{ number_format((float)($kpis['salario_promedio'] ?? 0),2,'.',',') }}</p>
+          </td>
+          <td class="kpi">
+            <h4>Deducción Promedio</h4>
+            @php
+              $dedProm = (float)($kpis['deduccion_promedio'] ?? 0);
+              $porcDed = (float)($kpis['porcentaje_deduccion'] ?? 0);
+            @endphp
+            <p>L. {{ number_format($dedProm,2,'.',',') }}</p>
+            <small>Carga promedio: {{ number_format($porcDed,2,'.',',') }}%</small>
+          </td>
+        </tr>
+      </table>
+
+    @else {{-- asistencia --}}
       <table class="kpis">
         <tr>
           <td class="kpi">
@@ -223,7 +259,7 @@
                 @php
                   $label = $o['nombre_oficina'] ?? '—';
                   $pct   = (float)($o['asistencia_pct'] ?? 0);
-                  $w     = max(2, min(100, (int)round($pct))); // ancho 0-100
+                  $w     = max(2, min(100, (int)round($pct)));
                 @endphp
                 <div class="bar-row">
                   <div class="bar-label">{{ $label }} — {{ number_format($pct,2,'.',',') }}%</div>
@@ -313,7 +349,44 @@
           @endforelse
         </tbody>
       </table>
-    @else
+
+    @elseif(($tipo ?? '') === 'planilla')
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>DNI</th>
+            <th>Puesto</th>
+            <th style="text-align:right;">Salario Bruto</th>
+            <th style="text-align:right;">Total Deducciones</th>
+            <th style="text-align:right;">Neto a Pagar</th>
+            <th>Período</th>
+          </tr>
+        </thead>
+        <tbody>
+          @forelse(($rows ?? []) as $r)
+            <tr>
+              <td>{{ $r['nombre'] ?? '-' }}</td>
+              <td>{{ $r['dni'] ?? '-' }}</td>
+              <td>{{ $r['cargo'] ?? '-' }}</td>
+              <td style="text-align:right;">
+                L. {{ number_format((float)($r['salariobruto'] ?? 0), 2, '.', ',') }}
+              </td>
+              <td style="text-align:right;">
+                L. {{ number_format((float)($r['total_deducciones'] ?? 0), 2, '.', ',') }}
+              </td>
+              <td style="text-align:right;">
+                L. {{ number_format((float)($r['total_a_pagar'] ?? 0), 2, '.', ',') }}
+              </td>
+              <td>{{ $r['periodo'] ?? '-' }}</td>
+            </tr>
+          @empty
+            <tr><td colspan="7" style="color:#6b7280;">Sin registros.</td></tr>
+          @endforelse
+        </tbody>
+      </table>
+
+    @else {{-- asistencia --}}
       <table class="data">
         <thead>
           <tr>

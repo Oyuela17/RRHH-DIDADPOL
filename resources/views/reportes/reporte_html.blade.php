@@ -74,6 +74,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+@php
+  $periodo = $data['periodo'] ?? null;
+  $kpis    = $data['kpis'] ?? [];
+  $rows    = $rows ?? [];
+
+  // Para empleados: distribución por modalidad
+  $mod = is_array($data['charts']['por_modalidad'] ?? null) ? $data['charts']['por_modalidad'] : [];
+  $modLabels = collect($mod)->pluck('modalidad')->map(fn($v)=>$v ?? '—')->values();
+  $modValues = collect($mod)->pluck('total')->map(fn($v)=>(int)$v)->values();
+@endphp
+
 <div class="wrap">
 
   {{-- ===== Encabezado ===== --}}
@@ -82,8 +93,7 @@
       <div class="logo">DP</div>
       <div>
         <h1>Reporte {{ strtoupper($tipo ?? '') }}</h1>
-        @php $periodo = $data['periodo'] ?? null; @endphp
-        @if($periodo)
+        @if($periodo && ($tipo ?? '') === 'asistencia')
           <div style="font-size:12px; opacity:.9;">
             Período: Mes {{ $periodo['mes'] ?? '' }} / {{ $periodo['anio'] ?? '' }}
           </div>
@@ -97,13 +107,6 @@
   </div>
 
   {{-- ===== KPIs ===== --}}
-  @php
-    $kpis = $data['kpis'] ?? [];
-    $mod = is_array($data['charts']['por_modalidad'] ?? null) ? $data['charts']['por_modalidad'] : [];
-    $modLabels = collect($mod)->pluck('modalidad')->map(fn($v)=>$v ?? '—')->values();
-    $modValues = collect($mod)->pluck('total')->map(fn($v)=>(int)$v)->values();
-  @endphp
-
   <div class="panel">
     <div class="title">Resumen</div>
     <div class="kpis">
@@ -125,7 +128,7 @@
           <small>Mediana: L. {{ number_format((float)($kpis['salario_mediana'] ?? 0),2,'.',',') }}</small>
         </div>
 
-        {{-- 🚀 Aquí va la dona compacta de Modalidad (reemplaza Antigüedad) --}}
+        {{-- Dona Modalidad --}}
         <div class="kpi kpi-donut">
           <h4>Distribución por Modalidad</h4>
           <div class="donut-box">
@@ -133,7 +136,44 @@
           </div>
           <div class="donut-legend" id="legendModalidad"></div>
         </div>
-      @else
+
+      @elseif(($tipo ?? '') === 'planilla')
+        <div class="kpi">
+          <h4>Empleados en Planilla</h4>
+          <p>{{ number_format((float)($kpis['total_empleados'] ?? 0),0,'.',',') }}</p>
+        </div>
+
+        <div class="kpi">
+          <h4>Total Devengado</h4>
+          <p>L. {{ number_format((float)($kpis['total_devengado'] ?? 0),2,'.',',') }}</p>
+        </div>
+
+        <div class="kpi">
+          <h4>Total Deducciones</h4>
+          <p>L. {{ number_format((float)($kpis['total_deducciones'] ?? 0),2,'.',',') }}</p>
+        </div>
+
+        <div class="kpi">
+          <h4>Total Neto a Pagar</h4>
+          <p>L. {{ number_format((float)($kpis['total_neto_pagar'] ?? 0),2,'.',',') }}</p>
+        </div>
+
+        <div class="kpi">
+          <h4>Salario Promedio</h4>
+          <p>L. {{ number_format((float)($kpis['salario_promedio'] ?? 0),2,'.',',') }}</p>
+        </div>
+
+        <div class="kpi">
+          <h4>Deducción Promedio</h4>
+          @php
+            $dedProm = (float)($kpis['deduccion_promedio'] ?? 0);
+            $porcDed = (float)($kpis['porcentaje_deduccion'] ?? 0);
+          @endphp
+          <p>L. {{ number_format($dedProm,2,'.',',') }}</p>
+          <small>Carga promedio: {{ number_format($porcDed,2,'.',',') }}%</small>
+        </div>
+
+      @else {{-- asistencia --}}
         <div class="kpi">
           <h4>Empleados</h4>
           <p>{{ number_format((float)($kpis['empleados'] ?? 0),0,'.',',') }}</p>
@@ -199,7 +239,42 @@
         @endforeach
         </tbody>
       </table>
-    @else
+
+    @elseif(($tipo ?? '') === 'planilla')
+      <table>
+        <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>DNI</th>
+          <th>Puesto</th>
+          <th>Salario Bruto</th>
+          <th>Total Deducciones</th>
+          <th>Neto a Pagar</th>
+          <th>Período</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach(($rows ?? []) as $r)
+          <tr>
+            <td>{{ $r['nombre'] ?? '-' }}</td>
+            <td>{{ $r['dni'] ?? '-' }}</td>
+            <td>{{ $r['cargo'] ?? '-' }}</td>
+            <td>
+              L. {{ number_format((float)($r['salariobruto'] ?? 0), 2, '.', ',') }}
+            </td>
+            <td>
+              L. {{ number_format((float)($r['total_deducciones'] ?? 0), 2, '.', ',') }}
+            </td>
+            <td>
+              L. {{ number_format((float)($r['total_a_pagar'] ?? 0), 2, '.', ',') }}
+            </td>
+            <td>{{ $r['periodo'] ?? '-' }}</td>
+          </tr>
+        @endforeach
+        </tbody>
+      </table>
+
+    @else {{-- asistencia --}}
       <table>
         <thead>
         <tr>

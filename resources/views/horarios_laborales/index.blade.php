@@ -45,6 +45,15 @@
 </script>
 @endif
 
+@php
+    // Permisos del módulo EMPLEADOS (donde cuelga Horarios)
+    $accionesEmpleados = $accionesPermitidas['EMPLEADOS'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 <div class="horarios-wrapper">
   <div class="titulo-con-linea">
     <h2>Mantenimiento de Horarios Laborales</h2>
@@ -57,7 +66,12 @@
       </form>
     </div>
     <div class="lado-derecho">
-      <a href="#" class="btn btn-nuevo" id="btnMostrarModal">
+      <a
+        href="#"
+        class="btn btn-nuevo"
+        id="btnMostrarModal"
+        data-bloqueado="{{ $accionesEmpleados['crear'] ? '0' : '1' }}"
+      >
         <i class="fas fa-plus"></i> Nuevo Horario
       </a>
     </div>
@@ -92,7 +106,8 @@
               {{ $mostrar }}
             </td>
             <td class="acciones-botones">
-              <a href="#" class="btn btn-warning btn-editar"
+              <a href="#"
+                 class="btn btn-warning btn-editar"
                  data-id="{{ $h['cod_horario'] }}"
                  data-nombre="{{ $h['nom_horario'] }}"
                  data-inicio="{{ $h['hora_inicio'] }}"
@@ -100,7 +115,10 @@
                  data-dias="{{ is_array($h['dias_semana']) ? implode(',', $h['dias_semana']) : $h['dias_semana'] }}">
                  Editar
               </a>
-              <form action="{{ route('horarios.destroy', $h['cod_horario']) }}" method="POST" class="form-eliminar" data-nombre="{{ $h['nom_horario'] }}">
+              <form action="{{ route('horarios.destroy', $h['cod_horario']) }}"
+                    method="POST"
+                    class="form-eliminar"
+                    data-nombre="{{ $h['nom_horario'] }}">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="btn btn-danger">Eliminar</button>
@@ -143,7 +161,6 @@
       <div class="form-group">
         <label>Seleccione los días laborales:</label>
         <div class="dias-semana-container" id="diasUI">
-          {{-- Usamos códigos estándar en data-code --}}
           <div class="dia-semana" data-code="LU">LUNES</div>
           <div class="dia-semana" data-code="MA">MARTES</div>
           <div class="dia-semana" data-code="MI">MIÉRCOLES</div>
@@ -167,6 +184,11 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+// Constantes de permisos (módulo EMPLEADOS)
+const P_CAN_CREATE_EMPLEADOS   = {{ $accionesEmpleados['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_EMPLEADOS   = {{ $accionesEmpleados['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_EMPLEADOS   = {{ $accionesEmpleados['eliminar'] ? 'true' : 'false' }};
+
 document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('modalHorario');
   const form = document.getElementById('formHorario');
@@ -178,6 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const finalInput = document.getElementById('horaFinal');
   const diasInput = document.getElementById('diasSeleccionados');
   const diasUI = document.getElementById('diasUI');
+  const btnNuevo = document.getElementById('btnMostrarModal');
 
   // Avisos (anti-spam)
   let ultimoAviso = 0;
@@ -217,8 +240,19 @@ document.addEventListener('DOMContentLoaded', () => {
     setDiasHidden();
   });
 
-  // Abrir modal nuevo
-  document.getElementById('btnMostrarModal').addEventListener('click', () => {
+  // Abrir modal NUEVO
+  btnNuevo.addEventListener('click', (e) => {
+    e.preventDefault();
+
+    if (!P_CAN_CREATE_EMPLEADOS) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para crear horarios.',
+      });
+      return;
+    }
+
     form.action = @json(route('horarios.store'));
     metodoForm.value = 'POST';
     tituloModal.textContent = 'Registrar Horario';
@@ -238,7 +272,17 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-editar');
     if (!btn) return;
+
     e.preventDefault();
+
+    if (!P_CAN_UPDATE_EMPLEADOS) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para editar horarios.',
+      });
+      return;
+    }
 
     const id = btn.dataset.id;
     const nombre = btn.dataset.nombre || '';
@@ -246,7 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const fin = btn.dataset.final || '';
     const diasAttr = (btn.dataset.dias || '').split(',').map(s => s.trim());
 
-    // Normaliza días que vengan como nombres o códigos
     const diasCod = diasAttr.map(d => {
       const u = d.toUpperCase();
       return COD_VALIDOS.includes(u) ? u : (NOMBRE_A_COD[u] || null);
@@ -261,7 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
     inicioInput.value = inicio;
     finalInput.value = fin;
 
-    // Pintar selección de días
     diasUI.querySelectorAll('.dia-semana').forEach(el => {
       el.classList.toggle('activo', diasCod.includes(el.dataset.code));
     });
@@ -274,6 +316,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.form-eliminar').forEach(f => {
     f.addEventListener('submit', function (e) {
       e.preventDefault();
+
+      if (!P_CAN_DELETE_EMPLEADOS) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para eliminar horarios.',
+        });
+        return;
+      }
+
       const nombre = this.dataset.nombre || '';
       Swal.fire({
         title: '¿Eliminar?',
@@ -292,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Validación extra antes de enviar
   form.addEventListener('submit', (e) => {
-    // nombre ya validado en tiempo real
     if (!nombreInput.value || /[^A-ZÁÉÍÓÚÑ ]/.test(nombreInput.value)) {
       e.preventDefault();
       return Swal.fire('Validación', 'El nombre solo permite letras y espacios.', 'warning');
@@ -301,7 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       return Swal.fire('Validación', 'Debes ingresar hora de inicio y hora final.', 'warning');
     }
-   
     if (!diasInput.value) {
       e.preventDefault();
       return Swal.fire('Validación', 'Selecciona al menos un día laboral.', 'warning');

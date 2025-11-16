@@ -5,15 +5,6 @@
 <link rel="stylesheet" href="{{ asset('vendor/datatable/datatables.min.css') }}">
 <link rel="stylesheet" href="{{ asset('css/planilla.css') }}">
 
-@php
-    $accionesPlanilla = $accionesPermitidas['PLANILLA'] ?? [
-        'crear'      => false,
-        'actualizar' => false,
-        'eliminar'   => false,
-    ];
-@endphp
-
-
 <div class="titulo-con-linea">
   <h2>Cálculo de Planilla</h2>
 </div>
@@ -28,15 +19,9 @@
 <div class="lado-derecho">
 
     <!-- Botón NUEVO -->
-   <button
-  type="button"
-  class="btn btn-nuevo"
-  onclick="mostrarFormulario()"
-  data-bloqueado="{{ $accionesPlanilla['crear'] ? '0' : '1' }}"
->
-  <i class="fas fa-plus"></i> Nuevo Registro
-</button>
-
+    <button type="button" class="btn btn-nuevo" onclick="mostrarFormulario()">
+      <i class="fas fa-plus"></i> Nuevo Registro
+    </button>
 
     <!-- 🔹 Contenedor que controla espaciado/alineación -->
     <div class="toolbar-filtros">
@@ -242,17 +227,9 @@
     </div>
 
     <div class="modal-footer">
-  <button
-    id="btnGuardarPlanilla"
-    class="btn btn-primary"
-    data-bloqueado-crear="{{ $accionesPlanilla['crear'] ? '0' : '1' }}"
-    data-bloqueado-actualizar="{{ $accionesPlanilla['actualizar'] ? '0' : '1' }}"
-  >
-    Guardar
-  </button>
-  <button class="btn btn-danger" onclick="cerrarModal()">Cancelar</button>
-</div>
-
+      <button id="btnGuardarPlanilla" class="btn btn-primary">Guardar</button>
+      <button class="btn btn-danger" onclick="cerrarModal()">Cancelar</button>
+    </div>
   </div>
 </div>
 @endsection
@@ -266,12 +243,6 @@
 
 @section('scripts')
 <script>
-
-const P_CAN_CREATE_PLANILLA   = {{ $accionesPlanilla['crear'] ? 'true' : 'false' }};
-const P_CAN_UPDATE_PLANILLA   = {{ $accionesPlanilla['actualizar'] ? 'true' : 'false' }};
-const P_CAN_DELETE_PLANILLA   = {{ $accionesPlanilla['eliminar'] ? 'true' : 'false' }};
-
-
 const API_BASE = 'https://rrhh-didadpol-1.onrender.com/api';
 let modalMode = 'nuevo';
 let currentCodPersona = null;
@@ -406,12 +377,6 @@ function configurarCamposParaModo(modo) {
     $editables.prop('readonly', false);
   }
 }
-
-function mostrarFormulario() {
-  if (!P_CAN_CREATE_PLANILLA) {
-    swalError('No tienes permiso para crear registros de planilla.', 'Acción no permitida');
-    return;
-  }
 
 function mostrarFormulario() {
   configurarCamposParaModo('nuevo');
@@ -614,16 +579,6 @@ $(document).ready(function () {
 
   // EDITAR
   $('#tabla_planilla').on('click', '.btn-editar', async function(){
-  if (!P_CAN_UPDATE_PLANILLA) {
-    swalError('No tienes permiso para editar registros de planilla.', 'Acción no permitida');
-    return;
-  }
-
-  const tr = $(this).closest('tr');
-  // ... resto de tu código tal como está
-
-
-  $('#tabla_planilla').on('click', '.btn-editar', async function(){
     const tr = $(this).closest('tr');
     const row = dt.row(tr).data() || dt.row(tr.prev()).data();
     if (!row) {
@@ -642,15 +597,6 @@ $(document).ready(function () {
   });
 
   // ELIMINAR
-  $('#tabla_planilla').on('click', '.btn-eliminar', async function(){
-  if (!P_CAN_DELETE_PLANILLA) {
-    swalError('No tienes permiso para eliminar registros de planilla.', 'Acción no permitida');
-    return;
-  }
-
-  const tr = $(this).closest('tr');
-  // ... resto de tu código tal como está
-
   $('#tabla_planilla').on('click', '.btn-eliminar', async function(){
     const tr = $(this).closest('tr');
     const row = dt.row(tr).data() || dt.row(tr.prev()).data();
@@ -781,18 +727,6 @@ $('#btnCargarEmpleado').on('click', async function(){
 });
 
 /* ===== Guardar planilla ===== */
-$('#btnGuardarPlanilla').on('click', async function(){
-  if (modalMode === 'nuevo' && !P_CAN_CREATE_PLANILLA) {
-    swalError('No tienes permiso para crear registros de planilla.', 'Acción no permitida');
-    return;
-  }
-  if (modalMode === 'editar' && !P_CAN_UPDATE_PLANILLA) {
-    swalError('No tienes permiso para editar registros de planilla.', 'Acción no permitida');
-    return;
-  }
-
-  // ... tu código de guardar sigue igual
-
 $('#btnGuardarPlanilla').on('click', async function(){
   try{
     const payload = {

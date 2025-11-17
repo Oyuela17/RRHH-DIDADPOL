@@ -17,7 +17,7 @@ class LoginController extends Controller
      * 'mock' -> modal, código fijo 123456 (sin correos)
      * 'email'-> 2FA real vía API Node
      */
-    private const TWO_FA_MODE      = 'mock';   // ← cámbialo a 'email' para producción
+    private const TWO_FA_MODE      = 'email';   // ← cámbialo a 'email' para producción
     private const TWO_FA_TEST_CODE = '123456';
     private const NODE_API_BASE    = 'https://rrhh-didadpol-1.onrender.com';
     private const NODE_API_TIMEOUT = 15;

@@ -6,6 +6,15 @@
 <link rel="stylesheet" href="{{ asset('css/register.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+@php
+    // Permisos del módulo USUARIO
+    $accionesUsuario = $accionesPermitidas['USUARIO'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 <style>
     .readonly-input {
         background-color: #f5f5f5;
@@ -20,18 +29,18 @@
     }
     .btn-mode {
         border: none;
-        padding: 8px 12px;          /* 🔹 más pequeño */
+        padding: 8px 12px;
         font-weight: 600;
-        border-radius: 6px;          /* 🔹 más pequeño */
+        border-radius: 6px;
         cursor: pointer;
         transition: transform .05s ease, opacity .2s ease;
-        font-size: 0.9rem;           /* 🔹 más pequeño */
+        font-size: 0.9rem;
         line-height: 1.1rem;
     }
     .btn-mode:active { transform: translateY(1px); }
-    .btn-inst { background: #0ea5e9; color: #fff; }     /* azul */
-    .btn-pers { background: #f59e0b; color: #fff; }     /* ámbar */
-    .btn-submit { display:none; } /* ocultamos el submit clásico */
+    .btn-inst { background: #0ea5e9; color: #fff; }
+    .btn-pers { background: #f59e0b; color: #fff; }
+    .btn-submit { display:none; }
     .hint { font-size: .9rem; color:#555; margin-top:6px; }
     .muted { color:#666; font-size:12px; }
 </style>
@@ -69,7 +78,7 @@
             <div class="hint">El enlace para definir contraseña se enviará a este correo personal.</div>
         </div>
 
-        {{-- Botones de modo (compactos) --}}
+        {{-- Botones de modo --}}
         <div class="btn-row">
             <button type="button" class="btn-mode btn-inst" id="btnInst" title="Genera un correo institucional único">
                 Crear con correo institucional
@@ -89,6 +98,9 @@
 
 {{-- Script --}}
 <script>
+    // ===== Permisos (módulo USUARIO) =====
+    const P_CAN_CREATE_USUARIO = {{ $accionesUsuario['crear'] ? 'true' : 'false' }};
+
     const $select = document.getElementById('persona_select');
     const $nombre = document.getElementById('nombre_completo');
     const $correo = document.getElementById('correo_personal');
@@ -103,11 +115,27 @@
     });
 
     document.getElementById('btnInst').addEventListener('click', () => {
+        if (!P_CAN_CREATE_USUARIO) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Acción no permitida',
+                text: 'No tienes permiso para registrar usuarios.',
+            });
+            return;
+        }
         $flag.value = 'true';
         enviarRegistro();
     });
 
     document.getElementById('btnPers').addEventListener('click', () => {
+        if (!P_CAN_CREATE_USUARIO) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Acción no permitida',
+                text: 'No tienes permiso para registrar usuarios.',
+            });
+            return;
+        }
         $flag.value = 'false';
         enviarRegistro();
     });
@@ -116,8 +144,18 @@
     $form.addEventListener('submit', (e) => e.preventDefault());
 
     function enviarRegistro() {
+        // Doble seguridad por si alguien llama esta función desde consola
+        if (!P_CAN_CREATE_USUARIO) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Acción no permitida',
+                text: 'No tienes permiso para registrar usuarios.',
+            });
+            return;
+        }
+
         const token = document.querySelector('input[name="_token"]').value;
-        const cod_persona = $select.value;                 // 🔹 enviamos cod_persona (no persona_id)
+        const cod_persona = $select.value;                 // enviamos cod_persona
         const nombre_completo = $nombre.value.trim();
         const correo_personal = ($correo.value || '').trim();
         const usar_correo_institucional = ($flag.value === 'true');
@@ -175,7 +213,7 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    cod_persona,            // 🔹 nombre correcto para el backend Node
+                    cod_persona,
                     nombre_completo,
                     correo_personal,
                     usar_correo_institucional
@@ -200,7 +238,6 @@
                     return;
                 }
 
-                // Errores del backend (mostrar texto exacto si llega)
                 const msg = data?.error || 'Ocurrió un error al registrar.';
                 Swal.fire({
                     icon: 'error',
@@ -222,10 +259,12 @@
     }
 
     function toggleButtons(disabled) {
-        document.getElementById('btnInst').disabled = disabled;
-        document.getElementById('btnPers').disabled = disabled;
-        document.getElementById('btnInst').style.opacity = disabled ? .7 : 1;
-        document.getElementById('btnPers').style.opacity = disabled ? .7 : 1;
+        const btnInst = document.getElementById('btnInst');
+        const btnPers = document.getElementById('btnPers');
+        btnInst.disabled = disabled;
+        btnPers.disabled = disabled;
+        btnInst.style.opacity = disabled ? .7 : 1;
+        btnPers.style.opacity = disabled ? .7 : 1;
     }
 </script>
 @endsection

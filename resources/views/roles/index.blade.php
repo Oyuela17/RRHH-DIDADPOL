@@ -17,6 +17,15 @@
 </script>
 @endif
 
+@php
+    // Permisos del módulo USUARIO (donde cuelga Roles)
+    $accionesUsuario = $accionesPermitidas['USUARIO'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 <div class="roles-wrapper">
   <div class="titulo-con-linea">
     <h2>Mantenimiento de Roles</h2>
@@ -25,11 +34,11 @@
   <div class="acciones-superiores">
     <div class="lado-izquierdo">
       <input type="text" id="campoBusqueda" class="form-control" placeholder="Buscar rol...">
-
     </div>
 
     <div class="lado-derecho">
-      <a href="#" class="btn btn-nuevo" id="btnMostrarModal">
+      <a href="#" class="btn btn-nuevo" id="btnMostrarModal"
+         data-bloqueado="{{ $accionesUsuario['crear'] ? '0' : '1' }}">
         <i class="fas fa-plus"></i> Nuevo Registro
       </a>
 
@@ -75,12 +84,18 @@
       @endif
     </td>
     <td class="acciones-botones">
-      <a href="#" class="btn btn-warning btn-editar"
+      <a href="#"
+         class="btn btn-warning btn-editar"
          data-id="{{ $rol->id }}"
          data-nombre="{{ $rol->nombre }}"
          data-descripcion="{{ $rol->descripcion }}"
-         data-estado="{{ $rol->estado }}">Editar</a>
-      <form action="/roles/{{ $rol->id }}" method="POST" class="form-eliminar" data-nombre="{{ $rol->nombre }}">
+         data-estado="{{ $rol->estado }}">
+         Editar
+      </a>
+      <form action="/roles/{{ $rol->id }}"
+            method="POST"
+            class="form-eliminar"
+            data-nombre="{{ $rol->nombre }}">
         @csrf
         @method('DELETE')
         <button type="submit" class="btn btn-danger btn-eliminar">Eliminar</button>
@@ -149,6 +164,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+// ===== Permisos (módulo USUARIO) =====
+const P_CAN_CREATE_USUARIO   = {{ $accionesUsuario['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_USUARIO   = {{ $accionesUsuario['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_USUARIO   = {{ $accionesUsuario['eliminar'] ? 'true' : 'false' }};
+
 document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('modalNuevoRol');
   const nombreInput = document.getElementById('nombreRol');
@@ -166,9 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const ordenSelect = document.querySelector('select[name="ordenar"]');
   const cantidadSelect = document.querySelector('select[name="cantidad"]');
 
-  // Modal: Registrar
+  // ===== Modal: Registrar (Nuevo) =====
   document.getElementById('btnMostrarModal').addEventListener('click', function (e) {
     e.preventDefault();
+
+    if (!P_CAN_CREATE_USUARIO) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para crear roles.',
+      });
+      return;
+    }
+
     form.action = "{{ route('roles.store') }}";
     metodoForm.value = 'POST';
     tituloModal.textContent = 'Registrar Nuevo Rol';
@@ -178,14 +208,23 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.style.display = 'flex';
   });
 
-  // Modal: Cancelar
+  // ===== Modal: Cancelar =====
   document.getElementById('cancelarRol').addEventListener('click', () => {
     modal.style.display = 'none';
   });
 
-  // Modal: Editar
+  // ===== Modal: Editar =====
   document.querySelectorAll('.btn-editar').forEach(btn => {
     btn.addEventListener('click', function () {
+      if (!P_CAN_UPDATE_USUARIO) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para editar roles.',
+        });
+        return;
+      }
+
       const id = this.dataset.id;
       const nombre = this.dataset.nombre;
       const descripcion = this.dataset.descripcion;
@@ -200,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Validación campo "nombre"
+  // ===== Validación campo "nombre" =====
   nombreInput.addEventListener('input', () => {
     let valor = nombreInput.value.toUpperCase().replace(/[^A-Z]/g, '');
     if (/\s/.test(nombreInput.value)) {
@@ -215,10 +254,12 @@ document.addEventListener('DOMContentLoaded', () => {
     nombreInput.value = valor;
   });
 
-  // Validación campo "descripción"
+  // ===== Validación campo "descripción" =====
   descripcionInput.addEventListener('input', (e) => {
     let valor = e.target.value.toUpperCase();
-    valor = valor.replace(/[^A-ZÁÉÍÓÚÑ ]/g, '').replace(/\s{2,}/g, ' ').replace(/(.)\1{2,}/g, '$1$1');
+    valor = valor.replace(/[^A-ZÁÉÍÓÚÑ ]/g, '')
+                 .replace(/\s{2,}/g, ' ')
+                 .replace(/(.)\1{2,}/g, '$1$1');
 
     const palabras = valor.trim().split(/\s+/);
     if (palabras.length > 2 || valor.length > 50) {
@@ -234,10 +275,20 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = valor;
   });
 
-  // Confirmar eliminación
-  document.querySelectorAll('.form-eliminar').forEach(form => {
-    form.addEventListener('submit', function (e) {
+  // ===== Confirmar eliminación =====
+  document.querySelectorAll('.form-eliminar').forEach(f => {
+    f.addEventListener('submit', function (e) {
       e.preventDefault();
+
+      if (!P_CAN_DELETE_USUARIO) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para eliminar roles.',
+        });
+        return;
+      }
+
       const nombreRol = this.dataset.nombre;
       Swal.fire({
         title: '¿Estás seguro?',
@@ -256,7 +307,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Filtro de búsqueda y orden en tiempo real
+  // ===== Validación extra en submit (crear / editar) =====
+  form.addEventListener('submit', function (e) {
+    const esCrear = (metodoForm.value === 'POST');
+    const esEditar = (metodoForm.value === 'PUT');
+
+    if (esCrear && !P_CAN_CREATE_USUARIO) {
+      e.preventDefault();
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para crear roles.',
+      });
+      return;
+    }
+
+    if (esEditar && !P_CAN_UPDATE_USUARIO) {
+      e.preventDefault();
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para editar roles.',
+      });
+      return;
+    }
+  });
+
+  // ===== Filtro de búsqueda y orden en tiempo real =====
   function filtrarTabla() {
     const filtro = campoBusqueda.value.trim().toUpperCase();
     const criterio = ordenSelect.value;

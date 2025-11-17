@@ -142,20 +142,28 @@
     <form id="formHorario" method="POST" action="{{ route('horarios.store') }}">
       @csrf
       <input type="hidden" name="_method" id="metodoForm" value="POST">
-      <input type="hidden" name="id" id="horarioId">
+      <input type="hidden" name="id" id="horarioId" value="{{ old('id') }}">
 
       <div class="form-group">
         <label>Nombre:</label>
-        <input type="text" name="nom_horario" id="nombreHorario" required maxlength="50"
-               pattern="^[A-ZÁÉÍÓÚÑ ]+$" title="Solo letras y espacios.">
+        <input
+          type="text"
+          name="nom_horario"
+          id="nombreHorario"
+          required
+          maxlength="50"
+          pattern="^[A-ZÁÉÍÓÚÑ ]+$"
+          title="Solo letras mayúsculas y espacios."
+          value="{{ old('nom_horario') ? mb_strtoupper(old('nom_horario'), 'UTF-8') : '' }}"
+        >
       </div>
       <div class="form-group">
         <label>Hora Inicio:</label>
-        <input type="time" name="hora_inicio" id="horaInicio" required>
+        <input type="time" name="hora_inicio" id="horaInicio" required value="{{ old('hora_inicio') }}">
       </div>
       <div class="form-group">
         <label>Hora Final:</label>
-        <input type="time" name="hora_final" id="horaFinal" required>
+        <input type="time" name="hora_final" id="horaFinal" required value="{{ old('hora_final') }}">
       </div>
 
       <div class="form-group">
@@ -169,7 +177,7 @@
           <div class="dia-semana" data-code="SA">SÁBADO</div>
           <div class="dia-semana" data-code="DO">DOMINGO</div>
         </div>
-        <input type="hidden" name="dias_semana" id="diasSeleccionados">
+        <input type="hidden" name="dias_semana" id="diasSeleccionados" value="{{ old('dias_semana') }}">
       </div>
 
       <div class="modal-botones">
@@ -185,22 +193,27 @@
 
 <script>
 // Constantes de permisos (módulo EMPLEADOS)
-const P_CAN_CREATE_EMPLEADOS   = {{ $accionesEmpleados['crear'] ? 'true' : 'false' }};
-const P_CAN_UPDATE_EMPLEADOS   = {{ $accionesEmpleados['actualizar'] ? 'true' : 'false' }};
-const P_CAN_DELETE_EMPLEADOS   = {{ $accionesEmpleados['eliminar'] ? 'true' : 'false' }};
+const P_CAN_CREATE_EMPLEADOS = {{ $accionesEmpleados['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_EMPLEADOS = {{ $accionesEmpleados['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_EMPLEADOS = {{ $accionesEmpleados['eliminar'] ? 'true' : 'false' }};
+
+// Flags/valores de Laravel para reabrir modal
+const HAY_ERRORES = {{ $errors->any() ? 'true' : 'false' }};
+const OLD_ID      = @json(old('id'));
+const OLD_DIAS    = @json(old('dias_semana'));
 
 document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById('modalHorario');
-  const form = document.getElementById('formHorario');
+  const modal       = document.getElementById('modalHorario');
+  const form        = document.getElementById('formHorario');
   const tituloModal = document.getElementById('tituloModal');
-  const metodoForm = document.getElementById('metodoForm');
-  const idInput = document.getElementById('horarioId');
+  const metodoForm  = document.getElementById('metodoForm');
+  const idInput     = document.getElementById('horarioId');
   const nombreInput = document.getElementById('nombreHorario');
   const inicioInput = document.getElementById('horaInicio');
-  const finalInput = document.getElementById('horaFinal');
-  const diasInput = document.getElementById('diasSeleccionados');
-  const diasUI = document.getElementById('diasUI');
-  const btnNuevo = document.getElementById('btnMostrarModal');
+  const finalInput  = document.getElementById('horaFinal');
+  const diasInput   = document.getElementById('diasSeleccionados');
+  const diasUI      = document.getElementById('diasUI');
+  const btnNuevo    = document.getElementById('btnMostrarModal');
 
   // Helpers para días
   const NOMBRE_A_COD = {
@@ -213,6 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const seleccionados = Array.from(diasUI.querySelectorAll('.dia-semana.activo'))
       .map(el => el.dataset.code);
     diasInput.value = seleccionados.join(',');
+  };
+
+  // Marcar días activos desde valor hidden (old / edición)
+  const inicializarDiasDesdeHidden = () => {
+    const valor = (diasInput.value || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    diasUI.querySelectorAll('.dia-semana').forEach(el => {
+      el.classList.toggle('activo', valor.includes(el.dataset.code));
+    });
   };
 
   diasUI.addEventListener('click', (e) => {
@@ -266,10 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const id = btn.dataset.id;
-    const nombre = btn.dataset.nombre || '';
-    const inicio = btn.dataset.inicio || '';
-    const fin = btn.dataset.final || '';
+    const id       = btn.dataset.id;
+    const nombre   = btn.dataset.nombre || '';
+    const inicio   = btn.dataset.inicio || '';
+    const fin      = btn.dataset.final || '';
     const diasAttr = (btn.dataset.dias || '').split(',').map(s => s.trim());
 
     const diasCod = diasAttr.map(d => {
@@ -282,9 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
     tituloModal.textContent = 'Editar Horario';
     idInput.value = id;
 
-    nombreInput.value = nombre.toUpperCase();
+    nombreInput.value = (nombre || '').toUpperCase();
     inicioInput.value = inicio;
-    finalInput.value = fin;
+    finalInput.value  = fin;
 
     diasUI.querySelectorAll('.dia-semana').forEach(el => {
       el.classList.toggle('activo', diasCod.includes(el.dataset.code));
@@ -324,13 +345,77 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // === ÚNICA VALIDACIÓN EXTRA: al menos un día seleccionado ===
+  // === VALIDACIÓN FRONT-END ANTES DE ENVIAR ===
   form.addEventListener('submit', (e) => {
-    if (!diasInput.value) {
+    const nombre = (nombreInput.value || '').trim();
+    const inicio = inicioInput.value;
+    const fin    = finalInput.value;
+    const dias   = (diasInput.value || '').trim();
+
+    const errores = [];
+
+    // Nombre: solo letras mayúsculas y espacios
+    const regexNombre = /^[A-ZÁÉÍÓÚÑ ]+$/;
+    if (!regexNombre.test(nombre)) {
+      errores.push('• El nombre solo permite letras mayúsculas y espacios.');
+    }
+
+    // Horas válidas HH:MM
+    const regexHora = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!regexHora.test(inicio) || !regexHora.test(fin)) {
+      errores.push('• Las horas deben estar en formato HH:MM (24 horas).');
+    } else if (fin <= inicio) {
+      errores.push('• La hora final debe ser mayor que la hora de inicio.');
+    }
+
+    // Días seleccionados
+    if (!dias) {
+      errores.push('• Debes seleccionar al menos un día laboral.');
+    } else {
+      const lista = dias.split(',').map(s => s.trim().toUpperCase());
+      const invalidos = lista.filter(d => !COD_VALIDOS.includes(d));
+      if (invalidos.length > 0) {
+        errores.push('• Hay días no válidos en la selección.');
+      }
+    }
+
+    if (errores.length > 0) {
       e.preventDefault();
-      Swal.fire('Validación', 'Selecciona al menos un día laboral.', 'warning');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Advertencia',
+        html: 'Revisa los campos:<br>' + errores.join('<br>'),
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#f39c12'
+      });
     }
   });
+
+  // === Reabrir modal automáticamente si hubo errores de validación Laravel ===
+  if (HAY_ERRORES) {
+    // Si OLD_ID viene, era edición; si no, creación
+    if (OLD_ID) {
+      form.action = @json(url('horarios')) + '/' + OLD_ID;
+      metodoForm.value = 'PUT';
+      tituloModal.textContent = 'Editar Horario';
+      idInput.value = OLD_ID;
+    } else {
+      form.action = @json(route('horarios.store'));
+      metodoForm.value = 'POST';
+      tituloModal.textContent = 'Registrar Horario';
+    }
+
+    // Inicializar días según old('dias_semana')
+    if (OLD_DIAS) {
+      diasInput.value = OLD_DIAS;
+    }
+    inicializarDiasDesdeHidden();
+
+    modal.style.display = 'flex';
+  } else {
+    // Si no hay errores pero sí hay un valor en hidden (por old manual), inicializa días
+    inicializarDiasDesdeHidden();
+  }
 });
 </script>
 @endsection

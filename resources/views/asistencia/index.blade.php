@@ -4,6 +4,15 @@
 
 @section('content')
 
+@php
+  // Permisos del módulo ASISTENCIA
+  $accionesAsistencia = $accionesPermitidas['ASISTENCIA'] ?? [
+      'crear'      => false,
+      'actualizar' => false,
+      'eliminar'   => false,
+  ];
+@endphp
+
 {{-- ============ FLASH: ASISTENCIA (Entrada / Salida) ============ --}}
 @if (session('mensaje') || session('mensaje_asistencia'))
 <script>
@@ -185,12 +194,11 @@
     </div>
   </div>
 
-  {{-- Historial con paginación Bootstrap-5 --}}
+  {{-- Historial con paginación --}}
   <div class="historial-timesheet">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <h4 style="margin:0;">Historial</h4>
 
-      {{-- Selector por página (opcional) --}}
       <form method="GET" action="{{ url()->current() }}" style="display:flex;align-items:center;gap:8px;">
         @foreach(request()->except(['per_page','page']) as $k => $v)
           <input type="hidden" name="{{ $k }}" value="{{ $v }}">
@@ -279,7 +287,6 @@
       </tbody>
     </table>
 
-    {{-- Controles de paginación centrados (tema Bootstrap-5) --}}
     @if ($historial->hasPages())
       <div style="display:flex;justify-content:center;margin-top:14px;">
         {{ $historial->appends(request()->except('page'))->links('pagination::bootstrap-4') }}
@@ -289,6 +296,9 @@
 </div>
 
 <script>
+  // ===== Permisos (módulo ASISTENCIA) =====
+  const P_CAN_CREATE_ASISTENCIA = {{ $accionesAsistencia['crear'] ? 'true' : 'false' }};
+
   function actualizarHora() {
     const ahora = new Date();
     const hora = ahora.toLocaleTimeString('es-HN', {
@@ -343,8 +353,38 @@
       setInterval(actualizarProgreso, 1000);
     }
 
+    // ===== BLOQUEO por permisos: Punch y Almuerzo =====
+    const formAsistencia = document.getElementById('formAsistencia');
+    const formAlmuerzo  = document.getElementById('formAlmuerzo');
+
+    if (formAsistencia) {
+      formAsistencia.addEventListener('submit', function(e){
+        if (!P_CAN_CREATE_ASISTENCIA) {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'error',
+            title: 'Acción no permitida',
+            text: 'No tienes permiso para registrar asistencia.',
+          });
+        }
+      });
+    }
+
+    if (formAlmuerzo) {
+      formAlmuerzo.addEventListener('submit', function(e){
+        if (!P_CAN_CREATE_ASISTENCIA) {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'error',
+            title: 'Acción no permitida',
+            text: 'No tienes permiso para registrar almuerzo.',
+          });
+        }
+      });
+    }
+
     // ==========================
-    // Cronómetro ALMUERZO (frontal)
+    // Cronómetro ALMUERZO
     // ==========================
     const almuerzoInicioStr = @json($almuerzoInicioStr);
     const almuerzoFinStr    = @json($almuerzoFinStr);

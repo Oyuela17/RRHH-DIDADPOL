@@ -17,6 +17,15 @@
 </script>
 @endif
 
+@php
+    // Permisos del módulo USUARIO (donde cuelga Usuarios-Roles)
+    $accionesUsuario = $accionesPermitidas['USUARIO'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 <div class="usuarios-wrapper">
   <div class="titulo-con-linea">
     <h2>Usuarios Roles</h2>
@@ -138,6 +147,11 @@
 @section('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+// ===== Permisos (módulo USUARIO) =====
+const P_CAN_CREATE_USUARIO   = {{ $accionesUsuario['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_USUARIO   = {{ $accionesUsuario['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_USUARIO   = {{ $accionesUsuario['eliminar'] ? 'true' : 'false' }};
+
 document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('modalAsignarRol');
   const form = document.getElementById('formAsignarRol');
@@ -156,6 +170,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Abrir modal editar/asignar rol
   document.querySelectorAll('.btn-editar-rol').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (!P_CAN_UPDATE_USUARIO) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para asignar o editar roles de usuario.',
+        });
+        return;
+      }
+
       const id = btn.dataset.id;
       const rol = btn.dataset.rol || '';
       const estado = btn.dataset.estado || 'ACTIVO';
@@ -179,6 +202,18 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('click', (e) => {
     if (e.target === modal) {
       modal.style.display = 'none';
+    }
+  });
+
+  // Seguridad extra: bloquear submit si no tiene permiso actualizar
+  form.addEventListener('submit', (e) => {
+    if (!P_CAN_UPDATE_USUARIO) {
+      e.preventDefault();
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para asignar o editar roles de usuario.',
+      });
     }
   });
 

@@ -102,37 +102,59 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-const API_URL = 'https://rrhh-didadpol-1.onrender.com';   // Tu API Node
-let   cacheModulos = [];                   // Para reutilizar la lista de módulos
+const API_URL = 'https://rrhh-didadpol-1.onrender.com';
+let cacheModulos = [];
 
-// ===================== PERMISOS ===========================
+
+// ======================================================================
+// SWITCHES — con eliminación de Actualizar/Eliminar para ciertos módulos
+// ======================================================================
 function crearSwitches(mod, permiso = {}) {
+
+  const modName = mod.nombre.toUpperCase();
+  const soloCrear = (modName === 'ASISTENCIA' || modName === 'REPORTES');
+
   return `
     <div class="permiso-item">
-      <span class="col-modulo">${mod.nombre.toUpperCase()}</span>
+      <span class="col-modulo">${modName}</span>
 
+      <!-- ACCESO -->
       <label class="switch-texto col-switch">
         <input type="checkbox" name="acceso_${mod.id}" ${permiso.tiene_acceso ? 'checked' : ''}>
         <span class="slider-texto"></span>
       </label>
 
+      <!-- CREAR -->
       <label class="switch-texto col-switch">
         <input type="checkbox" name="crear_${mod.id}" ${permiso.puede_crear ? 'checked' : ''}>
         <span class="slider-texto"></span>
       </label>
 
-      <label class="switch-texto col-switch">
-        <input type="checkbox" name="actualizar_${mod.id}" ${permiso.puede_actualizar ? 'checked' : ''}>
-        <span class="slider-texto"></span>
-      </label>
+      ${
+        soloCrear
+        ? `
+          <span class="col-switch disabled"></span>
+          <span class="col-switch disabled"></span>
+        `
+        : `
+          <!-- ACTUALIZAR -->
+          <label class="switch-texto col-switch">
+            <input type="checkbox" name="actualizar_${mod.id}" ${permiso.puede_actualizar ? 'checked' : ''}>
+            <span class="slider-texto"></span>
+          </label>
 
-      <label class="switch-texto col-switch">
-        <input type="checkbox" name="eliminar_${mod.id}" ${permiso.puede_eliminar ? 'checked' : ''}>
-        <span class="slider-texto"></span>
-      </label>
+          <!-- ELIMINAR -->
+          <label class="switch-texto col-switch">
+            <input type="checkbox" name="eliminar_${mod.id}" ${permiso.puede_eliminar ? 'checked' : ''}>
+            <span class="slider-texto"></span>
+          </label>
+        `
+      }
     </div>
   `;
 }
+
+
 
 // Abrir modal y cargar módulos + permisos
 document.querySelectorAll('.btn-ver-permisos').forEach(btn => {
@@ -147,19 +169,16 @@ document.querySelectorAll('.btn-ver-permisos').forEach(btn => {
     document.getElementById('modalPermisos').style.display = 'flex';
 
     try {
-      // 1) Obtener módulos (si no están en caché)
       if (cacheModulos.length === 0) {
         const respMod = await fetch(`${API_URL}/api/modulos`);
         if (!respMod.ok) throw new Error('Error al obtener módulos');
         cacheModulos = await respMod.json();
       }
 
-      // 2) Obtener permisos del rol
       const respPerm = await fetch(`${API_URL}/api/permisos/${rolId}`);
       if (!respPerm.ok) throw new Error('Error al obtener permisos');
-      const permisos = await respPerm.json(); // Array de {modulo_id, nombre, tiene_acceso,...}
+      const permisos = await respPerm.json();
 
-      // 3) Construir switches
       const lista = document.getElementById('listaModulos');
       lista.innerHTML = '';
 
@@ -175,39 +194,38 @@ document.querySelectorAll('.btn-ver-permisos').forEach(btn => {
   });
 });
 
-// Guardar permisos (recorre todos los módulos y llama a POST /api/permisos)
+
+// Guardar
 document.getElementById('formPermisos').addEventListener('submit', async function (e) {
   e.preventDefault();
+
   const rolId = document.getElementById('permisoRolId').value;
 
   try {
-    // Si por algo el caché está vacío, volvemos a traer módulos
     if (cacheModulos.length === 0) {
       const respMod = await fetch(`${API_URL}/api/modulos`);
-      if (!respMod.ok) throw new Error('Error al obtener módulos');
       cacheModulos = await respMod.json();
     }
 
     for (const mod of cacheModulos) {
+
+      const modName = mod.nombre.toUpperCase();
+      const soloCrear = (modName === 'ASISTENCIA' || modName === 'REPORTES');
+
       const permiso = {
         rol_id: parseInt(rolId),
         modulo_id: mod.id,
         tiene_acceso:     document.querySelector(`[name=acceso_${mod.id}]`).checked,
         puede_crear:      document.querySelector(`[name=crear_${mod.id}]`).checked,
-        puede_actualizar: document.querySelector(`[name=actualizar_${mod.id}]`).checked,
-        puede_eliminar:   document.querySelector(`[name=eliminar_${mod.id}]`).checked
+        puede_actualizar: soloCrear ? false : document.querySelector(`[name=actualizar_${mod.id}]`).checked,
+        puede_eliminar:   soloCrear ? false : document.querySelector(`[name=eliminar_${mod.id}]`).checked
       };
 
-      const resp = await fetch(`${API_URL}/api/permisos`, {
+      await fetch(`${API_URL}/api/permisos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(permiso)
       });
-
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.error || 'Error al guardar permiso');
-      }
     }
 
     Swal.fire('Éxito', 'Permisos guardados correctamente', 'success');
@@ -215,16 +233,16 @@ document.getElementById('formPermisos').addEventListener('submit', async functio
 
   } catch (error) {
     console.error(error);
-    Swal.fire('Error', 'No se pudo guardar los permisos', 'error');
+    Swal.fire('Error','No se pudo guardar los permisos','error');
   }
 });
 
-// Cerrar modal
 document.getElementById('cancelarPermisos').addEventListener('click', () => {
   document.getElementById('modalPermisos').style.display = 'none';
 });
 
-// ===================== BÚSQUEDA + ORDENAMIENTO EN TIEMPO REAL ===========================
+
+// --- Búsqueda + ordenamiento ---
 const campoBusqueda = document.getElementById('campoBusqueda');
 const ordenarSelect = document.getElementById('ordenarSelect');
 const tablaBody     = document.querySelector('.roles-table tbody');
@@ -248,7 +266,6 @@ function filtrarYOrdenar() {
   }
 
   const criterio = ordenarSelect.value;
-
   let resultado = filasOriginales.filter(f => f.dataset.nombre.includes(filtro));
 
   resultado.sort((a, b) => {
@@ -263,11 +280,11 @@ function filtrarYOrdenar() {
 
   tablaBody.innerHTML = '';
   resultado.forEach(f => tablaBody.appendChild(f));
-
   paginacion.style.display = filtro ? 'none' : '';
 }
 
 campoBusqueda.addEventListener('input',  filtrarYOrdenar);
 ordenarSelect.addEventListener('change', filtrarYOrdenar);
+
 </script>
 @endsection

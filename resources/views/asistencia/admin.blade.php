@@ -6,11 +6,19 @@
 
 @php
   use Carbon\Carbon;
+
   $mesActual  = (int) request('mes', now()->month);
   $anioActual = (int) request('anio', now()->year);
   $diasMes    = $dias ?? Carbon::create($anioActual, $mesActual, 1)->daysInMonth;
   $vista      = request('vista', 'mes');  // mes | semana
   $semanaIso  = request('semana');
+
+  // ==== PERMISOS MÓDULO CONTROL DE ASISTENCIA ====
+  $accionesControlAsis = $accionesPermitidas['CONTROL DE ASISTENCIA'] ?? [
+      'crear'      => false,
+      'actualizar' => false,
+      'eliminar'   => false,
+  ];
 @endphp
 
 <div class="asistencia-admin-wrapper">
@@ -335,6 +343,11 @@
 {{-- ================= SCRIPTS ================= --}}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+  // ===== PERMISOS (módulo CONTROL DE ASISTENCIA) =====
+  const P_CAN_CREATE_CTRL_ASIS = {{ $accionesControlAsis['crear'] ? 'true' : 'false' }};
+  const P_CAN_UPDATE_CTRL_ASIS = {{ $accionesControlAsis['actualizar'] ? 'true' : 'false' }};
+  const P_CAN_DELETE_CTRL_ASIS = {{ $accionesControlAsis['eliminar'] ? 'true' : 'false' }};
+
   /* ---------- Búsqueda ---------- */
   const inputNombre = document.getElementById('input-nombre');
   if (inputNombre) {
@@ -348,11 +361,11 @@
   }
 
   /* ---------- Auto-refresh Mes/Año ---------- */
-const selectMes   = document.getElementById('mes');
-const selectAnio  = document.getElementById('anio');
-const filtroForm  = document.getElementById('filtro-form');
-const vistaSel    = document.getElementById('vista');
-const inpSemana   = document.getElementById('semana');
+  const selectMes   = document.getElementById('mes');
+  const selectAnio  = document.getElementById('anio');
+  const filtroForm  = document.getElementById('filtro-form');
+  const vistaSel    = document.getElementById('vista');
+  const inpSemana   = document.getElementById('semana');
 
   [selectMes, selectAnio].forEach(s => {
     s && s.addEventListener('change', () => {
@@ -363,35 +376,33 @@ const inpSemana   = document.getElementById('semana');
     });
   });
 
- /* ---------- Vista Mes/Semana ---------- */
-function toggleSemanaInput() {
-  const isSemana = vistaSel.value === 'semana';
-  inpSemana.disabled = !isSemana;
-  inpSemana.title = isSemana ? 'Seleccione una semana' : 'Disponible en Vista: Semana';
-  inpSemana.classList.toggle('week-disabled', !isSemana);
-}
-
-/* Cuando cambie la vista, recargo con los parámetros correctos */
-vistaSel && vistaSel.addEventListener('change', () => {
-  const params = new URLSearchParams(window.location.search);
-
-  if (selectMes)   params.set('mes',   selectMes.value);
-  if (selectAnio)  params.set('anio',  selectAnio.value);
-  if (vistaSel)    params.set('vista', vistaSel.value);
-
-  if (vistaSel.value === 'semana') {
-    // si no hay semana seleccionada, pongo la actual
-    if (!inpSemana.value) {
-      const now = new Date();
-      inpSemana.value = getISOWeekString(now);
-    }
-    params.set('semana', inpSemana.value);
-  } else {
-    params.delete('semana');
+  /* ---------- Vista Mes/Semana ---------- */
+  function toggleSemanaInput() {
+    const isSemana = vistaSel.value === 'semana';
+    inpSemana.disabled = !isSemana;
+    inpSemana.title = isSemana ? 'Seleccione una semana' : 'Disponible en Vista: Semana';
+    inpSemana.classList.toggle('week-disabled', !isSemana);
   }
 
-  window.location.search = params.toString();
-});
+  vistaSel && vistaSel.addEventListener('change', () => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (selectMes)   params.set('mes',   selectMes.value);
+    if (selectAnio)  params.set('anio',  selectAnio.value);
+    if (vistaSel)    params.set('vista', vistaSel.value);
+
+    if (vistaSel.value === 'semana') {
+      if (!inpSemana.value) {
+        const now = new Date();
+        inpSemana.value = getISOWeekString(now);
+      }
+      params.set('semana', inpSemana.value);
+    } else {
+      params.delete('semana');
+    }
+
+    window.location.search = params.toString();
+  });
 
   vistaSel && vistaSel.addEventListener('change', toggleSemanaInput);
   inpSemana && inpSemana.addEventListener('change', () => filtrarPorSemana(inpSemana.value));
@@ -534,6 +545,16 @@ vistaSel && vistaSel.addEventListener('change', () => {
 
   celdasDias.forEach(td => {
     td.addEventListener('click', () => {
+      // BLOQUEO POR PERMISOS
+      if (!P_CAN_UPDATE_CTRL_ASIS) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para editar la asistencia.',
+        });
+        return;
+      }
+
       const cod    = td.dataset.codEmpleado || '';
       const fecha  = td.dataset.date || '';
       const nombre = td.dataset.nombre || '';
@@ -574,6 +595,16 @@ vistaSel && vistaSel.addEventListener('change', () => {
     nombreTd.addEventListener('click', () => {
       if (!vistaSel || vistaSel.value !== 'semana') {
         return; // solo en Vista: Semana
+      }
+
+      // BLOQUEO POR PERMISOS
+      if (!P_CAN_UPDATE_CTRL_ASIS) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para registrar asistencia semanal.',
+        });
+        return;
       }
 
       const cod   = fila.dataset.codEmpleado || '';
@@ -655,6 +686,17 @@ vistaSel && vistaSel.addEventListener('change', () => {
   }
 
   formManual && formManual.addEventListener('submit', (e)=>{
+    // BLOQUEO POR PERMISOS
+    if (!P_CAN_UPDATE_CTRL_ASIS) {
+      e.preventDefault();
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para guardar cambios de asistencia.',
+      });
+      return false;
+    }
+
     const ent = entradaEl.value;
     const sal = salidaEl.value;
 
@@ -674,6 +716,17 @@ vistaSel && vistaSel.addEventListener('change', () => {
   /* ---------- Validación básica ASISTENCIA SEMANAL ---------- */
   const formSemana = document.getElementById('form-semana');
   formSemana && formSemana.addEventListener('submit', (e)=>{
+    // BLOQUEO POR PERMISOS
+    if (!P_CAN_UPDATE_CTRL_ASIS) {
+      e.preventDefault();
+      Swal.fire({
+        icon: 'error',
+        title: 'Acción no permitida',
+        text: 'No tienes permiso para guardar asistencia semanal.',
+      });
+      return false;
+    }
+
     const ent = semanaEntEl ? semanaEntEl.value : '';
     const sal = semanaSalEl ? semanaSalEl.value : '';
     if (sal && !ent) {
@@ -709,30 +762,28 @@ vistaSel && vistaSel.addEventListener('change', () => {
 
   /* ---------- Init ---------- */
   document.addEventListener('DOMContentLoaded', () => {
-  if (!vistaSel || !inpSemana) {
-    actualizarExportLinks();
-    return;
-  }
-
-  // Si ya estamos en vista "semana" (por el parámetro de la URL)
-  if (vistaSel.value === 'semana') {
-    inpSemana.disabled = false;
-    inpSemana.classList.remove('week-disabled');
-    inpSemana.title = 'Seleccione una semana';
-
-    // Si no tiene valor, poner la semana actual
-    if (!inpSemana.value) {
-      const now = new Date();
-      inpSemana.value = getISOWeekString(now);
+    if (!vistaSel || !inpSemana) {
+      actualizarExportLinks();
+      return;
     }
 
-    filtrarPorSemana(inpSemana.value);   // 👈 aquí se aplica el filtro
-  } else {
-    mostrarMesCompleto();
-  }
+    if (vistaSel.value === 'semana') {
+      inpSemana.disabled = false;
+      inpSemana.classList.remove('week-disabled');
+      inpSemana.title = 'Seleccione una semana';
 
-  actualizarExportLinks();
-});
+      if (!inpSemana.value) {
+        const now = new Date();
+        inpSemana.value = getISOWeekString(now);
+      }
+
+      filtrarPorSemana(inpSemana.value);
+    } else {
+      mostrarMesCompleto();
+    }
+
+    actualizarExportLinks();
+  });
 
 </script>
 

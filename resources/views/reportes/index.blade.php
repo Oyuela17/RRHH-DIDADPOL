@@ -4,6 +4,16 @@
 @section('content')
 <link rel="stylesheet" href="{{ asset('css/reportes.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+@php
+    // Permisos del módulo REPORTES (ajusta la clave si en tu sistema se llama diferente)
+    $accionesReportes = $accionesPermitidas['REPORTES'] ?? [
+        'crear'      => false,   // lo usaremos para EXPORTAR
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
 
 <div id="reportes-app" class="reportes-wrapper">
   <div class="tabs-container">
@@ -163,7 +173,24 @@
 </div>
 
 <script>
+  // ===== Permisos (módulo REPORTES) =====
+  const P_CAN_EXPORT_REPORTES = {{ $accionesReportes['crear'] ? 'true' : 'false' }};
+
 document.addEventListener("DOMContentLoaded", () => {
+  // ===== Bloqueo de exportación si no hay permiso =====
+  document.querySelectorAll('.btn-export').forEach(link => {
+    link.addEventListener('click', (e) => {
+      if (!P_CAN_EXPORT_REPORTES) {
+        e.preventDefault();
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para descargar reportes.',
+        });
+      }
+    });
+  });
+
   const tabs = document.querySelectorAll(".tab-btn");
   const contents = document.querySelectorAll(".tab-content");
   const apiEmpleados = "{{ route('reportes.empleados') }}";

@@ -1,7 +1,6 @@
 @extends('layouts.dashboard')
 @section('title','Backups')
 
-{{-- (Opcional) Estilos mínimos de apoyo si no ya existen en tu CSS global --}}
 @section('styles')
 <style>
   .backups-title{font-size:2rem;font-weight:800;margin:6px 0 18px 0;color:#0b3a63}
@@ -30,14 +29,22 @@
 </style>
 @endsection
 
+@php
+    // Permisos del módulo BACKUPS
+    $accionesBackups = $accionesPermitidas['BACKUPS'] ?? [
+        'crear'      => false,
+        'actualizar' => false,
+        'eliminar'   => false,
+    ];
+@endphp
+
 @section('content')
 <div class="empleados-wrapper">
 
   <h2 class="backups-title">Backups</h2>
 
-  {{-- Subinfo + botón ejecutar + subir archivo --}}
+  {{-- Subinfo + mensaje de sesión --}}
   <div class="backups-subinfo">
-    {{-- Mensajes de sesión para SweetAlert (se lanzan abajo con JS) --}}
     @if(session('ok'))  <div class="alert success" style="display:none">{{ session('ok') }}</div> @endif
     @if(session('err')) <div class="alert danger"  style="display:none">{{ session('err') }}</div> @endif
 
@@ -64,7 +71,10 @@
         </dl>
 
         {{-- Ejecutar respaldo --}}
-        <form method="POST" action="{{ route('backups.run') }}" style="margin-top:12px">
+        <form method="POST"
+              action="{{ route('backups.run') }}"
+              class="form-ejecutar-backup"
+              style="margin-top:12px">
           @csrf
           <input type="hidden" name="tipo" value="solo_bd">
           <button class="bk-btn-ejecutar">🗄️ Ejecutar respaldo ahora</button>
@@ -76,7 +86,10 @@
         <h4 class="section-title">Subir nuevo respaldo</h4>
         <div class="input-hint">Seleccionar archivo (.sql o .zip):</div>
 
-        <form method="POST" action="{{ route('backups.restore') }}" enctype="multipart/form-data">
+        <form method="POST"
+              action="{{ route('backups.restore') }}"
+              enctype="multipart/form-data"
+              class="form-subir-backup">
           @csrf
           <div class="input-file">
             <input type="file" name="file" accept=".zip,.sql" required>
@@ -91,7 +104,7 @@
     </div>
   </div>
 
-  {{-- Tabla con estética de Empleados --}}
+  {{-- Tabla backups --}}
   <div class="empleados-container">
     <table class="empleados-table">
       <thead>
@@ -119,14 +132,23 @@
           <td>{{ isset($f['fecha']) ? \Carbon\Carbon::parse($f['fecha'])->format('Y-m-d H:i') : '—' }}</td>
           <td>
             <div class="bk-acciones-col">
-              <a href="{{ route('backups.download', $f['id']) }}" class="bk-btn bk-btn-info">Descargar</a>
+              <a href="{{ route('backups.download', $f['id']) }}"
+                 class="bk-btn bk-btn-info bk-btn-download">
+                Descargar
+              </a>
 
-              <form action="{{ route('backups.restore.use', $f['id']) }}" method="POST" class="form-restaurar" data-nombre="{{ $f['nombre_archivo'] }}">
+              <form action="{{ route('backups.restore.use', $f['id']) }}"
+                    method="POST"
+                    class="form-restaurar"
+                    data-nombre="{{ $f['nombre_archivo'] }}">
                 @csrf
                 <button type="submit" class="bk-btn bk-btn-success">Restaurar</button>
               </form>
 
-              <form action="{{ route('backups.destroy', $f['id']) }}" method="POST" class="form-eliminar" data-nombre="{{ $f['nombre_archivo'] }}">
+              <form action="{{ route('backups.destroy', $f['id']) }}"
+                    method="POST"
+                    class="form-eliminar"
+                    data-nombre="{{ $f['nombre_archivo'] }}">
                 @csrf @method('DELETE')
                 <button type="submit" class="bk-btn bk-btn-danger">Eliminar</button>
               </form>
@@ -142,14 +164,72 @@
 
 </div>
 
-{{-- SweetAlert2 --}}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
+// ===== Permisos (módulo BACKUPS) =====
+const P_CAN_CREATE_BACKUPS   = {{ $accionesBackups['crear'] ? 'true' : 'false' }};
+const P_CAN_UPDATE_BACKUPS   = {{ $accionesBackups['actualizar'] ? 'true' : 'false' }};
+const P_CAN_DELETE_BACKUPS   = {{ $accionesBackups['eliminar'] ? 'true' : 'false' }};
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Ejecutar respaldo
+  document.querySelectorAll('.form-ejecutar-backup').forEach(f => {
+    f.addEventListener('submit', function(e){
+      if (!P_CAN_CREATE_BACKUPS) {
+        e.preventDefault();
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para ejecutar respaldos.',
+        });
+        return;
+      }
+    });
+  });
+
+  // Subir backup
+  document.querySelectorAll('.form-subir-backup').forEach(f => {
+    f.addEventListener('submit', function(e){
+      if (!P_CAN_CREATE_BACKUPS) {
+        e.preventDefault();
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para subir respaldos.',
+        });
+        return;
+      }
+    });
+  });
+
+  // Descargar backup
+  document.querySelectorAll('.bk-btn-download').forEach(btn => {
+    btn.addEventListener('click', function(e){
+      if (!P_CAN_CREATE_BACKUPS) {
+        e.preventDefault();
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para descargar respaldos.',
+        });
+      }
+    });
+  });
+
   // Confirmar restauración
   document.querySelectorAll('.form-restaurar').forEach(f => {
     f.addEventListener('submit', function(e){
       e.preventDefault();
+
+      if (!P_CAN_UPDATE_BACKUPS) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para restaurar respaldos.',
+        });
+        return;
+      }
+
       const nombre = this.dataset.nombre || '';
       Swal.fire({
         title: '¿Restaurar backup?',
@@ -168,6 +248,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.form-eliminar').forEach(f => {
     f.addEventListener('submit', function(e){
       e.preventDefault();
+
+      if (!P_CAN_DELETE_BACKUPS) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Acción no permitida',
+          text: 'No tienes permiso para eliminar respaldos.',
+        });
+        return;
+      }
+
       const nombre = this.dataset.nombre || '';
       Swal.fire({
         title: '¿Eliminar backup?',
